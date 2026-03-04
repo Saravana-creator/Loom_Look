@@ -25,15 +25,15 @@ const VendorProducts = () => {
     const [saving, setSaving] = useState(false);
     const [confirm, setConfirm] = useState({ open: false, id: null });
 
-    const load = async () => {
+    const load = React.useCallback(async () => {
         setLoading(true);
         try {
             const { data } = await productService.getMyProducts({ limit: 50 });
             setProducts(data.data);
         } catch { } finally { setLoading(false); }
-    };
+    }, []);
 
-    useEffect(() => { load(); }, []);
+    useEffect(() => { load(); }, [load]);
 
     const openNew = () => { setForm(defaultForm); setImageUrls(['']); setEditProduct(null); setShowForm(true); };
     const openEdit = (p) => {
