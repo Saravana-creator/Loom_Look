@@ -1,215 +1,174 @@
-const Product = require('../models/Product');
-const Vendor = require('../models/Vendor');
+const { query } = require('../config/db');
 const { successResponse, errorResponse, paginatedResponse } = require('../utils/response');
-const { AppError } = require('../middleware/errorHandler');
 
 /**
  * GET /api/products
- * Get all products with search, filter, pagination
  */
 const getProducts = async (req, res) => {
-    const {
-        page = 1,
-        limit = 12,
-        search,
-        category,
-        minPrice,
-        maxPrice,
-        sort = '-createdAt',
-        vendor: vendorId,
-    } = req.query;
+    const { page = 1, limit = 12, search, category, minPrice, maxPrice, sort = '-created_at', vendor: vendorId } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
 
-    const query = { isActive: true };
+    const conditions = ['p.is_active = true'];
+    const params = [];
 
-    // Full-text search
     if (search) {
-        query.$text = { $search: search };
+        params.push(`%${search}%`);
+        conditions.push(`(p.name ILIKE $${params.length} OR p.description ILIKE $${params.length})`);
     }
+    if (category) { params.push(category); conditions.push(`p.category = $${params.length}`); }
+    if (minPrice) { params.push(Number(minPrice)); conditions.push(`p.price >= $${params.length}`); }
+    if (maxPrice) { params.push(Number(maxPrice)); conditions.push(`p.price <= $${params.length}`); }
+    if (vendorId) { params.push(vendorId); conditions.push(`p.vendor_id = $${params.length}`); }
 
-    // Category filter
-    if (category) query.category = category;
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    // Price range filter
-    if (minPrice || maxPrice) {
-        query.price = {};
-        if (minPrice) query.price.$gte = Number(minPrice);
-        if (maxPrice) query.price.$lte = Number(maxPrice);
-    }
+    const sortCol = sort.startsWith('-') ? sort.slice(1) : sort;
+    const sortDir = sort.startsWith('-') ? 'DESC' : 'ASC';
+    const allowedSorts = ['created_at', 'price', 'ratings_average', 'total_sold'];
+    const safeSort = allowedSorts.includes(sortCol) ? sortCol : 'created_at';
 
-    // Vendor filter
-    if (vendorId) query.vendor = vendorId;
+    params.push(Number(limit), offset);
+    const dataQ = `
+        SELECT p.*, v.shop_name, v.logo as vendor_avatar
+        FROM products p
+        LEFT JOIN vendors v ON v.id = p.vendor_id
+        ${where}
+        ORDER BY p.${safeSort} ${sortDir}
+        LIMIT $${params.length - 1} OFFSET $${params.length}
+    `;
 
-    const skip = (Number(page) - 1) * Number(limit);
+    const countParams = params.slice(0, params.length - 2);
+    const countQ = `SELECT COUNT(*) FROM products p ${where}`;
 
-    let sortObj = {};
-    if (sort.startsWith('-')) {
-        sortObj[sort.slice(1)] = -1;
-    } else {
-        sortObj[sort] = 1;
-    }
-
-    const [products, total] = await Promise.all([
-        Product.find(query)
-            .sort(sortObj)
-            .skip(skip)
-            .limit(Number(limit))
-            .populate('vendor', 'shopName avatar'),
-        Product.countDocuments(query),
+    const [dataRes, countRes] = await Promise.all([
+        query(dataQ, params),
+        query(countQ, countParams),
     ]);
 
-    return paginatedResponse(res, products, Number(page), Number(limit), total);
+    return paginatedResponse(res, dataRes.rows, Number(page), Number(limit), Number(countRes.rows[0].count));
 };
 
 /**
  * GET /api/products/:id
- * Get single product
  */
 const getProduct = async (req, res) => {
-    const product = await Product.findById(req.params.id).populate(
-        'vendor',
-        'shopName shopDescription avatar phone'
+    const result = await query(
+        `SELECT p.*, v.shop_name, v.description as vendor_description, v.logo as vendor_avatar
+         FROM products p LEFT JOIN vendors v ON v.id = p.vendor_id
+         WHERE p.id = $1 AND p.is_active = true`,
+        [req.params.id]
     );
-    if (!product || !product.isActive) {
-        return errorResponse(res, 404, 'Product not found.');
-    }
-    return successResponse(res, 200, 'Product fetched.', product);
+    if (!result.rows[0]) return errorResponse(res, 404, 'Product not found.');
+    return successResponse(res, 200, 'Product fetched.', result.rows[0]);
 };
 
 /**
- * POST /api/vendor/products
- * Create a new product (vendor only)
+ * POST /api/products (vendor)
  */
 const createProduct = async (req, res) => {
     const { name, description, price, discountPrice, stock, category, images, tags, material, handmadeDetails } = req.body;
 
-    const product = await Product.create({
-        name,
-        description,
-        price,
-        discountPrice: discountPrice || 0,
-        stock,
-        category,
-        images: images || [],
-        tags: tags || [],
-        material,
-        handmadeDetails,
-        vendor: req.user.id,
-    });
-
-    // Update vendor product count
-    await Vendor.findByIdAndUpdate(req.user.id, { $inc: { totalProducts: 1 } });
-
-    return successResponse(res, 201, 'Product created successfully.', product);
+    const result = await query(
+        `INSERT INTO products (name, description, price, discount_price, stock, category, images, vendor_id, tags, material, handmade_details)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+        [name, description, price, discountPrice || 0, stock, category,
+            JSON.stringify(images || []), req.user.id,
+            tags || [], material || '', JSON.stringify(handmadeDetails || {})]
+    );
+    return successResponse(res, 201, 'Product created successfully.', result.rows[0]);
 };
 
 /**
- * PUT /api/vendor/products/:id
- * Update a product (vendor only, owns product)
+ * PUT /api/products/:id (vendor)
  */
 const updateProduct = async (req, res) => {
-    const product = await Product.findById(req.params.id);
-    if (!product) return errorResponse(res, 404, 'Product not found.');
-    if (product.vendor.toString() !== req.user.id) {
-        return errorResponse(res, 403, 'Not authorized to update this product.');
-    }
+    const existing = await query('SELECT vendor_id FROM products WHERE id = $1', [req.params.id]);
+    if (!existing.rows[0]) return errorResponse(res, 404, 'Product not found.');
+    if (existing.rows[0].vendor_id !== req.user.id) return errorResponse(res, 403, 'Not authorized to update this product.');
 
-    const updated = await Product.findByIdAndUpdate(req.params.id, req.body, {
-        new: true,
-        runValidators: true,
-    });
-
-    return successResponse(res, 200, 'Product updated.', updated);
+    const { name, description, price, discountPrice, stock, category, images, tags, material, handmadeDetails, isActive } = req.body;
+    const result = await query(
+        `UPDATE products SET name = COALESCE($1, name), description = COALESCE($2, description),
+         price = COALESCE($3, price), discount_price = COALESCE($4, discount_price),
+         stock = COALESCE($5, stock), category = COALESCE($6, category),
+         images = COALESCE($7, images), tags = COALESCE($8, tags),
+         material = COALESCE($9, material), handmade_details = COALESCE($10, handmade_details),
+         is_active = COALESCE($11, is_active), updated_at = NOW()
+         WHERE id = $12 RETURNING *`,
+        [name, description, price, discountPrice, stock, category,
+            images ? JSON.stringify(images) : null, tags || null,
+            material, handmadeDetails ? JSON.stringify(handmadeDetails) : null,
+            isActive, req.params.id]
+    );
+    return successResponse(res, 200, 'Product updated.', result.rows[0]);
 };
 
 /**
- * DELETE /api/vendor/products/:id
- * Delete a product (vendor or admin)
+ * DELETE /api/products/:id
  */
 const deleteProduct = async (req, res) => {
-    const product = await Product.findById(req.params.id);
-    if (!product) return errorResponse(res, 404, 'Product not found.');
-
-    if (req.user.role === 'vendor' && product.vendor.toString() !== req.user.id) {
+    const existing = await query('SELECT vendor_id FROM products WHERE id = $1', [req.params.id]);
+    if (!existing.rows[0]) return errorResponse(res, 404, 'Product not found.');
+    if (req.user.role === 'vendor' && existing.rows[0].vendor_id !== req.user.id) {
         return errorResponse(res, 403, 'Not authorized to delete this product.');
     }
-
-    await Product.findByIdAndUpdate(req.params.id, { isActive: false });
-
+    await query('UPDATE products SET is_active = false, updated_at = NOW() WHERE id = $1', [req.params.id]);
     return successResponse(res, 200, 'Product deleted successfully.');
 };
 
 /**
- * GET /api/vendor/products
- * Get vendor's own products
+ * GET /api/products/mine (vendor)
  */
 const getVendorProducts = async (req, res) => {
     const { page = 1, limit = 12 } = req.query;
-    const skip = (Number(page) - 1) * Number(limit);
+    const offset = (Number(page) - 1) * Number(limit);
 
-    const [products, total] = await Promise.all([
-        Product.find({ vendor: req.user.id })
-            .sort('-createdAt')
-            .skip(skip)
-            .limit(Number(limit)),
-        Product.countDocuments({ vendor: req.user.id }),
+    const [dataRes, countRes] = await Promise.all([
+        query('SELECT * FROM products WHERE vendor_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
+            [req.user.id, Number(limit), offset]),
+        query('SELECT COUNT(*) FROM products WHERE vendor_id = $1', [req.user.id]),
     ]);
-
-    return paginatedResponse(res, products, Number(page), Number(limit), total);
+    return paginatedResponse(res, dataRes.rows, Number(page), Number(limit), Number(countRes.rows[0].count));
 };
 
 /**
  * GET /api/admin/products
- * Get all products (admin)
  */
 const getAllProductsAdmin = async (req, res) => {
     const { page = 1, limit = 20 } = req.query;
-    const skip = (Number(page) - 1) * Number(limit);
+    const offset = (Number(page) - 1) * Number(limit);
 
-    const [products, total] = await Promise.all([
-        Product.find()
-            .sort('-createdAt')
-            .skip(skip)
-            .limit(Number(limit))
-            .populate('vendor', 'shopName email'),
-        Product.countDocuments(),
+    const [dataRes, countRes] = await Promise.all([
+        query(`SELECT p.*, v.shop_name FROM products p LEFT JOIN vendors v ON v.id = p.vendor_id
+               ORDER BY p.created_at DESC LIMIT $1 OFFSET $2`, [Number(limit), offset]),
+        query('SELECT COUNT(*) FROM products'),
     ]);
-
-    return paginatedResponse(res, products, Number(page), Number(limit), total);
+    return paginatedResponse(res, dataRes.rows, Number(page), Number(limit), Number(countRes.rows[0].count));
 };
 
 /**
  * POST /api/products/:id/reviews
- * Add review to a product (user only)
  */
 const addReview = async (req, res) => {
     const { rating, comment } = req.body;
-    const product = await Product.findById(req.params.id);
-    if (!product) return errorResponse(res, 404, 'Product not found.');
 
-    // Check existing review
-    const alreadyReviewed = product.reviews.find(
-        (r) => r.user.toString() === req.user.id
+    const prodRes = await query('SELECT id FROM products WHERE id = $1 AND is_active = true', [req.params.id]);
+    if (!prodRes.rows[0]) return errorResponse(res, 404, 'Product not found.');
+
+    const existing = await query('SELECT id FROM reviews WHERE product_id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+    if (existing.rows.length > 0) return errorResponse(res, 409, 'You have already reviewed this product.');
+
+    await query('INSERT INTO reviews (product_id, user_id, rating, comment) VALUES ($1, $2, $3, $4)',
+        [req.params.id, req.user.id, rating, comment]);
+
+    // Recalculate avg rating
+    const avgRes = await query(
+        'SELECT COUNT(*) as count, AVG(rating) as avg FROM reviews WHERE product_id = $1', [req.params.id]
     );
-    if (alreadyReviewed) return errorResponse(res, 409, 'You have already reviewed this product.');
+    await query('UPDATE products SET ratings_count = $1, ratings_average = $2 WHERE id = $3',
+        [avgRes.rows[0].count, parseFloat(avgRes.rows[0].avg).toFixed(2), req.params.id]);
 
-    product.reviews.push({ user: req.user.id, rating, comment });
-
-    // Recalculate average rating
-    product.ratings.count = product.reviews.length;
-    product.ratings.average =
-        product.reviews.reduce((acc, r) => acc + r.rating, 0) / product.reviews.length;
-
-    await product.save();
-    return successResponse(res, 201, 'Review added.', product.ratings);
+    return successResponse(res, 201, 'Review added.', { count: avgRes.rows[0].count, average: avgRes.rows[0].avg });
 };
 
-module.exports = {
-    getProducts,
-    getProduct,
-    createProduct,
-    updateProduct,
-    deleteProduct,
-    getVendorProducts,
-    getAllProductsAdmin,
-    addReview,
-};
+module.exports = { getProducts, getProduct, createProduct, updateProduct, deleteProduct, getVendorProducts, getAllProductsAdmin, addReview };

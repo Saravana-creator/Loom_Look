@@ -1,259 +1,186 @@
-const LiveSession = require('../models/LiveSession');
-const Booking = require('../models/Booking');
+const { query } = require('../config/db');
 const { successResponse, errorResponse, paginatedResponse } = require('../utils/response');
-const { generateBookingId } = require('../utils/helpers');
 const { encrypt, decrypt } = require('../utils/encryption');
+const { generateUUID, generateBookingId } = require('../utils/helpers');
 const { SESSION_STATUS } = require('../config/constants');
 
 /**
  * GET /api/sessions
- * Get all active upcoming sessions (public)
  */
 const getSessions = async (req, res) => {
     const { page = 1, limit = 12, vendor, topic } = req.query;
-    const skip = (Number(page) - 1) * Number(limit);
+    const offset = (Number(page) - 1) * Number(limit);
 
-    const query = {
-        isEnabled: true,
-        status: { $in: [SESSION_STATUS.UPCOMING, SESSION_STATUS.LIVE] },
-        scheduledAt: { $gte: new Date() },
-    };
+    const conditions = [`ls.status IN ('${SESSION_STATUS.UPCOMING}', '${SESSION_STATUS.LIVE}')`, 'ls.scheduled_at >= NOW()'];
+    const params = [];
 
-    if (vendor) query.vendor = vendor;
-    if (topic) query.topic = topic;
+    if (vendor) { params.push(vendor); conditions.push(`ls.vendor_id = $${params.length}`); }
 
-    const [sessions, total] = await Promise.all([
-        LiveSession.find(query)
-            .sort('scheduledAt')
-            .skip(skip)
-            .limit(Number(limit))
-            .populate('vendor', 'shopName avatar name'),
-        LiveSession.countDocuments(query),
+    const where = `WHERE ${conditions.join(' AND ')}`;
+    params.push(Number(limit), offset);
+
+    const [dataRes, countRes] = await Promise.all([
+        query(`SELECT ls.*, v.shop_name, v.logo as vendor_avatar FROM live_sessions ls
+               LEFT JOIN vendors v ON v.id = ls.vendor_id ${where}
+               ORDER BY ls.scheduled_at ASC LIMIT $${params.length - 1} OFFSET $${params.length}`, params),
+        query(`SELECT COUNT(*) FROM live_sessions ls ${where}`, params.slice(0, params.length - 2)),
     ]);
 
-    return paginatedResponse(res, sessions, Number(page), Number(limit), total);
+    return paginatedResponse(res, dataRes.rows, Number(page), Number(limit), Number(countRes.rows[0].count));
 };
 
 /**
  * GET /api/sessions/:id
- * Get session detail (video link only for booked users)
  */
 const getSession = async (req, res) => {
-    const session = await LiveSession.findById(req.params.id)
-        .populate('vendor', 'shopName avatar name shopDescription');
+    const result = await query(
+        `SELECT ls.*, v.shop_name, v.logo as vendor_avatar, v.description as vendor_description
+         FROM live_sessions ls LEFT JOIN vendors v ON v.id = ls.vendor_id WHERE ls.id = $1`,
+        [req.params.id]
+    );
+    if (!result.rows[0]) return errorResponse(res, 404, 'Session not found.');
 
-    if (!session) return errorResponse(res, 404, 'Session not found.');
+    const sessionData = { ...result.rows[0] };
 
-    const sessionData = session.toObject();
-
-    // Check if user is booked — reveal video link
     if (req.user) {
-        const booking = await Booking.findOne({
-            session: session._id,
-            user: req.user.id,
-            status: 'confirmed',
-        });
-
-        if (booking) {
-            // Decrypt and reveal video link
-            sessionData.videoLink = decrypt(session.videoLinkEncrypted);
+        const booking = await query(
+            `SELECT id FROM bookings WHERE session_id = $1 AND user_id = $2 AND booking_status = 'Confirmed'`,
+            [result.rows[0].id, req.user.id]
+        );
+        if (booking.rows.length > 0) {
+            sessionData.videoLink = decrypt(sessionData.meeting_link || '');
             sessionData.isBooked = true;
         } else {
             sessionData.isBooked = false;
         }
     }
 
-    delete sessionData.videoLinkEncrypted;
+    delete sessionData.meeting_link;
     return successResponse(res, 200, 'Session fetched.', sessionData);
 };
 
 /**
  * POST /api/vendor/sessions
- * Create a live session (vendor only)
  */
 const createSession = async (req, res) => {
-    const { title, description, scheduledAt, duration, maxParticipants, videoLink, platform, topic, price, tags, thumbnail } = req.body;
+    const { title, description, scheduledAt, duration, maxParticipants, videoLink, price, tags, thumbnail } = req.body;
 
-    // Encrypt video link before storing
-    const videoLinkEncrypted = encrypt(videoLink || '');
-
-    const session = await LiveSession.create({
-        title,
-        description,
-        scheduledAt: new Date(scheduledAt),
-        duration,
-        maxParticipants: maxParticipants || 50,
-        videoLinkEncrypted,
-        platform,
-        topic,
-        price: price || 0,
-        tags,
-        thumbnail,
-        vendor: req.user.id,
-    });
-
-    return successResponse(res, 201, 'Live session created.', session);
+    const result = await query(
+        `INSERT INTO live_sessions (title, description, vendor_id, scheduled_at, duration_minutes, max_participants, meeting_link, tags, is_featured, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, 'Scheduled') RETURNING *`,
+        [title, description, req.user.id, new Date(scheduledAt),
+            duration || 60, maxParticipants || 50,
+            encrypt(videoLink || ''), tags || []]
+    );
+    return successResponse(res, 201, 'Live session created.', result.rows[0]);
 };
 
 /**
  * PUT /api/vendor/sessions/:id
- * Update session (vendor only)
  */
 const updateSession = async (req, res) => {
-    const session = await LiveSession.findById(req.params.id);
-    if (!session) return errorResponse(res, 404, 'Session not found.');
-    if (session.vendor.toString() !== req.user.id) {
-        return errorResponse(res, 403, 'Not authorized to update this session.');
-    }
+    const existing = await query('SELECT vendor_id FROM live_sessions WHERE id = $1', [req.params.id]);
+    if (!existing.rows[0]) return errorResponse(res, 404, 'Session not found.');
+    if (existing.rows[0].vendor_id !== req.user.id) return errorResponse(res, 403, 'Not authorized.');
 
-    const updateData = { ...req.body };
-    if (req.body.videoLink) {
-        updateData.videoLinkEncrypted = encrypt(req.body.videoLink);
-        delete updateData.videoLink;
-    }
-
-    const updated = await LiveSession.findByIdAndUpdate(req.params.id, updateData, {
-        new: true,
-    });
-
-    return successResponse(res, 200, 'Session updated.', updated);
+    const { title, description, scheduledAt, duration, maxParticipants, videoLink, tags, status } = req.body;
+    const result = await query(
+        `UPDATE live_sessions SET
+         title = COALESCE($1, title), description = COALESCE($2, description),
+         scheduled_at = COALESCE($3, scheduled_at), duration_minutes = COALESCE($4, duration_minutes),
+         max_participants = COALESCE($5, max_participants),
+         meeting_link = COALESCE($6, meeting_link),
+         tags = COALESCE($7, tags), status = COALESCE($8, status), updated_at = NOW()
+         WHERE id = $9 RETURNING *`,
+        [title, description, scheduledAt ? new Date(scheduledAt) : null, duration, maxParticipants,
+            videoLink ? encrypt(videoLink) : null, tags, status, req.params.id]
+    );
+    return successResponse(res, 200, 'Session updated.', result.rows[0]);
 };
 
 /**
  * DELETE /api/vendor/sessions/:id
- * Delete session (vendor)
  */
 const deleteSession = async (req, res) => {
-    const session = await LiveSession.findById(req.params.id);
-    if (!session) return errorResponse(res, 404, 'Session not found.');
-    if (session.vendor.toString() !== req.user.id) {
-        return errorResponse(res, 403, 'Not authorized.');
-    }
+    const existing = await query('SELECT vendor_id FROM live_sessions WHERE id = $1', [req.params.id]);
+    if (!existing.rows[0]) return errorResponse(res, 404, 'Session not found.');
+    if (existing.rows[0].vendor_id !== req.user.id) return errorResponse(res, 403, 'Not authorized.');
 
-    await LiveSession.findByIdAndUpdate(req.params.id, {
-        status: SESSION_STATUS.CANCELLED,
-        isEnabled: false,
-    });
-
+    await query(`UPDATE live_sessions SET status = 'Cancelled', updated_at = NOW() WHERE id = $1`, [req.params.id]);
     return successResponse(res, 200, 'Session cancelled.');
 };
 
 /**
  * GET /api/vendor/sessions
- * Get vendor's sessions
  */
 const getVendorSessions = async (req, res) => {
     const { page = 1, limit = 10 } = req.query;
-    const skip = (Number(page) - 1) * Number(limit);
-
-    const [sessions, total] = await Promise.all([
-        LiveSession.find({ vendor: req.user.id })
-            .sort('-createdAt')
-            .skip(skip)
-            .limit(Number(limit)),
-        LiveSession.countDocuments({ vendor: req.user.id }),
+    const offset = (Number(page) - 1) * Number(limit);
+    const [dataRes, countRes] = await Promise.all([
+        query('SELECT * FROM live_sessions WHERE vendor_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
+            [req.user.id, Number(limit), offset]),
+        query('SELECT COUNT(*) FROM live_sessions WHERE vendor_id = $1', [req.user.id]),
     ]);
-
-    return paginatedResponse(res, sessions, Number(page), Number(limit), total);
+    return paginatedResponse(res, dataRes.rows, Number(page), Number(limit), Number(countRes.rows[0].count));
 };
 
 /**
  * POST /api/sessions/:id/book
- * Book a live session (user)
  */
 const bookSession = async (req, res) => {
-    const session = await LiveSession.findById(req.params.id);
-    if (!session || !session.isEnabled) {
-        return errorResponse(res, 404, 'Session not found or unavailable.');
-    }
-    if (new Date(session.scheduledAt) < new Date()) {
-        return errorResponse(res, 400, 'Cannot book a past session.');
-    }
-    if (session.currentParticipants >= session.maxParticipants) {
+    const sessionRes = await query('SELECT * FROM live_sessions WHERE id = $1', [req.params.id]);
+    const session = sessionRes.rows[0];
+    if (!session) return errorResponse(res, 404, 'Session not found or unavailable.');
+    if (new Date(session.scheduled_at) < new Date()) return errorResponse(res, 400, 'Cannot book a past session.');
+
+    const bookingsCountRes = await query('SELECT COUNT(*) FROM bookings WHERE session_id = $1', [session.id]);
+    if (Number(bookingsCountRes.rows[0].count) >= session.max_participants) {
         return errorResponse(res, 400, 'Session is fully booked.');
     }
 
-    // Check duplicate booking
-    const existing = await Booking.findOne({ user: req.user.id, session: session._id });
-    if (existing) return errorResponse(res, 409, 'You have already booked this session.');
+    const existing = await query('SELECT id FROM bookings WHERE user_id = $1 AND session_id = $2', [req.user.id, session.id]);
+    if (existing.rows.length > 0) return errorResponse(res, 409, 'You have already booked this session.');
 
-    const booking = await Booking.create({
-        bookingId: generateBookingId(),
-        user: req.user.id,
-        session: session._id,
-        vendor: session.vendor,
-        isPaid: session.price === 0,
-    });
-
-    // Add user to session's bookedUsers
-    await LiveSession.findByIdAndUpdate(session._id, {
-        $push: { bookedUsers: req.user.id },
-        $inc: { currentParticipants: 1 },
-    });
-
-    return successResponse(res, 201, 'Session booked successfully!', booking);
+    const result = await query(
+        `INSERT INTO bookings (user_id, session_id, booking_status, payment_status) VALUES ($1, $2, 'Confirmed', 'Paid') RETURNING *`,
+        [req.user.id, session.id]
+    );
+    return successResponse(res, 201, 'Session booked successfully!', result.rows[0]);
 };
 
 /**
  * GET /api/sessions/my-bookings
- * Get user's bookings
  */
 const getUserBookings = async (req, res) => {
-    const bookings = await Booking.find({ user: req.user.id })
-        .sort('-createdAt')
-        .populate({
-            path: 'session',
-            populate: { path: 'vendor', select: 'shopName avatar' },
-        });
-
-    return successResponse(res, 200, 'Bookings fetched.', bookings);
+    const result = await query(
+        `SELECT b.*, ls.title, ls.scheduled_at, ls.duration_minutes, v.shop_name
+         FROM bookings b
+         JOIN live_sessions ls ON ls.id = b.session_id
+         LEFT JOIN vendors v ON v.id = ls.vendor_id
+         WHERE b.user_id = $1 ORDER BY b.created_at DESC`,
+        [req.user.id]
+    );
+    return successResponse(res, 200, 'Bookings fetched.', result.rows);
 };
 
 /**
  * GET /api/sessions/:id/join
- * Join session — get video link if booked and session is live/upcoming
  */
 const joinSession = async (req, res) => {
-    const session = await LiveSession.findById(req.params.id);
-    if (!session) return errorResponse(res, 404, 'Session not found.');
+    const sessionRes = await query('SELECT * FROM live_sessions WHERE id = $1', [req.params.id]);
+    if (!sessionRes.rows[0]) return errorResponse(res, 404, 'Session not found.');
 
-    // Check if session has expired
-    if (session.expiresAt && new Date() > new Date(session.expiresAt)) {
-        return errorResponse(res, 410, 'Session link has expired.');
-    }
+    const bookingRes = await query(
+        `SELECT id FROM bookings WHERE session_id = $1 AND user_id = $2 AND booking_status = 'Confirmed'`,
+        [req.params.id, req.user.id]
+    );
+    if (!bookingRes.rows[0]) return errorResponse(res, 403, 'You are not booked for this session.');
 
-    const booking = await Booking.findOne({
-        session: session._id,
-        user: req.user.id,
-        status: 'confirmed',
-    });
-
-    if (!booking) return errorResponse(res, 403, 'You are not booked for this session.');
-
-    // Update booking joinedAt
-    await Booking.findByIdAndUpdate(booking._id, { joinedAt: new Date() });
-
-    const videoLink = decrypt(session.videoLinkEncrypted);
-
+    const videoLink = decrypt(sessionRes.rows[0].meeting_link || '');
     return successResponse(res, 200, 'Join link retrieved.', {
         videoLink,
-        session: {
-            title: session.title,
-            scheduledAt: session.scheduledAt,
-            duration: session.duration,
-            platform: session.platform,
-        },
+        session: { title: sessionRes.rows[0].title, scheduledAt: sessionRes.rows[0].scheduled_at, duration: sessionRes.rows[0].duration_minutes },
     });
 };
 
-module.exports = {
-    getSessions,
-    getSession,
-    createSession,
-    updateSession,
-    deleteSession,
-    getVendorSessions,
-    bookSession,
-    getUserBookings,
-    joinSession,
-};
+module.exports = { getSessions, getSession, createSession, updateSession, deleteSession, getVendorSessions, bookSession, getUserBookings, joinSession };

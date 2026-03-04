@@ -4,7 +4,6 @@ require('express-async-errors');
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
-const mongoSanitize = require('express-mongo-sanitize');
 const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
 const morgan = require('morgan');
@@ -27,7 +26,6 @@ const app = express();
 //  SECURITY MIDDLEWARE
 // ─────────────────────────────────────────────
 
-// Secure HTTP headers
 app.use(
     helmet({
         crossOriginResourcePolicy: { policy: 'cross-origin' },
@@ -35,18 +33,19 @@ app.use(
     })
 );
 
-// CORS
-const allowedOrigins = ["https://loomlook.vercel.app", "http://localhost:3000", "http://127.0.0.1:3000"];
+// CORS — handle preflight OPTIONS explicitly
+const allowedOrigins = [
+    'https://loomlook.vercel.app',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+];
+
 app.use(
     cors({
         origin: function (origin, callback) {
-            // allow requests with no origin (like mobile apps or curl requests)
-            if (!origin) return callback(null, true);
-            if (allowedOrigins.indexOf(origin) === -1) {
-                const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-                return callback(new Error(msg), false);
-            }
-            return callback(null, true);
+            if (!origin) return callback(null, true); // Allow non-browser requests
+            if (allowedOrigins.includes(origin)) return callback(null, true);
+            return callback(new Error('Not allowed by CORS'));
         },
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
@@ -54,9 +53,12 @@ app.use(
     })
 );
 
+// Explicitly handle preflight requests for all routes
+app.options('*', cors());
+
 // Rate limiting
 const limiter = rateLimit({
-    windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 min
+    windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
     max: Number(process.env.RATE_LIMIT_MAX) || 100,
     message: { success: false, message: 'Too many requests. Please try again later.' },
     standardHeaders: true,
@@ -64,7 +66,6 @@ const limiter = rateLimit({
 });
 app.use('/api', limiter);
 
-// Stricter rate limit for auth
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 20,
@@ -80,16 +81,9 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser(process.env.COOKIE_SECRET));
 
 // ─────────────────────────────────────────────
-//  DATA SANITIZATION
+//  MISC MIDDLEWARE
 // ─────────────────────────────────────────────
-// NoSQL injection prevention
-app.use(mongoSanitize());
-// HTTP Parameter Pollution prevention
 app.use(hpp({ whitelist: ['price', 'rating', 'category', 'sort'] }));
-
-// ─────────────────────────────────────────────
-//  LOGGING
-// ─────────────────────────────────────────────
 if (process.env.NODE_ENV === 'development') {
     app.use(morgan('dev'));
 }
@@ -103,6 +97,7 @@ app.get('/api/health', (req, res) => {
         message: '🪡 Loom Look API is running!',
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV,
+        database: 'PostgreSQL',
     });
 });
 

@@ -1,14 +1,11 @@
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
-const Order = require('../models/Order');
-const Product = require('../models/Product');
-const User = require('../models/User');
-const Vendor = require('../models/Vendor');
+const { query } = require('../config/db');
 const { successResponse, errorResponse, paginatedResponse } = require('../utils/response');
 const { generateOrderId } = require('../utils/helpers');
+const { encrypt } = require('../utils/encryption');
 const { ORDER_STATUS, PAYMENT_STATUS } = require('../config/constants');
 
-// Initialize Razorpay
 const razorpay = new Razorpay({
     key_id: process.env.RAZORPAY_KEY_ID,
     key_secret: process.env.RAZORPAY_KEY_SECRET,
@@ -16,79 +13,68 @@ const razorpay = new Razorpay({
 
 /**
  * POST /api/orders
- * Create order & initiate Razorpay payment
  */
 const createOrder = async (req, res) => {
     const { items, shippingAddress, paymentMethod = 'razorpay' } = req.body;
 
-    // Fetch ALL products in ONE parallel DB query instead of one-per-item
-    const productIds = items.map((i) => i.productId);
-    const products = await Product.find({ _id: { $in: productIds } }).populate('vendor', '_id');
-    const productMap = Object.fromEntries(products.map((p) => [p._id.toString(), p]));
+    const productIds = items.map(i => i.productId);
+    const prodRes = await query(
+        'SELECT id, name, price, discount_price, stock, is_active, vendor_id, images FROM products WHERE id = ANY($1::uuid[])',
+        [productIds]
+    );
+    const productMap = Object.fromEntries(prodRes.rows.map(p => [p.id, p]));
 
-    // Validate items and calculate total
     let subtotal = 0;
     const orderItems = [];
 
     for (const item of items) {
         const product = productMap[item.productId];
-        if (!product || !product.isActive) {
-            return errorResponse(res, 400, `Product ${item.productId} is not available.`);
-        }
-        if (product.stock < item.quantity) {
-            return errorResponse(res, 400, `Insufficient stock for: ${product.name}`);
-        }
+        if (!product || !product.is_active) return errorResponse(res, 400, `Product ${item.productId} is not available.`);
+        if (product.stock < item.quantity) return errorResponse(res, 400, `Insufficient stock for: ${product.name}`);
 
-        const price = product.discountPrice > 0 ? product.discountPrice : product.price;
+        const price = product.discount_price > 0 ? product.discount_price : product.price;
         const itemSubtotal = price * item.quantity;
         subtotal += itemSubtotal;
 
         orderItems.push({
-            product: product._id,
-            vendor: product.vendor._id,
+            productId: product.id,
+            vendorId: product.vendor_id,
             name: product.name,
-            image: product.images[0]?.url || '',
+            image: (product.images && product.images[0]?.url) || '',
             price,
             quantity: item.quantity,
             subtotal: itemSubtotal,
         });
     }
 
-    const shippingCharge = subtotal > 999 ? 0 : 80;
-    const tax = Math.round(subtotal * 0.05); // 5% GST
-    const total = subtotal + shippingCharge + tax;
+    const shippingCost = subtotal > 999 ? 0 : 80;
+    const tax = Math.round(subtotal * 0.05);
+    const total = subtotal + shippingCost + tax;
+    const orderNumber = generateOrderId();
 
-    // Create Razorpay order
-    let razorpayOrder = null;
+    let razorpayOrderId = null;
     if (paymentMethod === 'razorpay') {
-        razorpayOrder = await razorpay.orders.create({
-            amount: total * 100, // paise
+        const rOrder = await razorpay.orders.create({
+            amount: total * 100,
             currency: 'INR',
-            receipt: generateOrderId(),
+            receipt: orderNumber,
             notes: { userId: req.user.id },
         });
+        razorpayOrderId = rOrder.id;
     }
 
-    // Create order in DB
-    const order = await Order.create({
-        orderId: generateOrderId(),
-        user: req.user.id,
-        items: orderItems,
-        shippingAddress,
-        paymentMethod,
-        subtotal,
-        shippingCharge,
-        tax,
-        total,
-        paymentStatus: PAYMENT_STATUS.PENDING,
-        paymentDetails: {
-            razorpayOrderId: razorpayOrder?.id,
-        },
-    });
+    const result = await query(
+        `INSERT INTO orders (user_id, order_number, items, shipping_address_encrypted, payment_method, payment_status, order_status, subtotal, shipping_cost, tax, total_amount, payment_info)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+        [req.user.id, orderNumber, JSON.stringify(orderItems), encrypt(JSON.stringify(shippingAddress)),
+            paymentMethod, PAYMENT_STATUS.PENDING, ORDER_STATUS.PROCESSING,
+            subtotal, shippingCost, tax, total,
+        JSON.stringify({ razorpayOrderId })]
+    );
 
     return successResponse(res, 201, 'Order created.', {
-        order,
-        razorpayOrderId: razorpayOrder?.id,
+        order: result.rows[0],
+        razorpayOrderId,
         razorpayKeyId: process.env.RAZORPAY_KEY_ID,
         amount: total * 100,
         currency: 'INR',
@@ -97,149 +83,112 @@ const createOrder = async (req, res) => {
 
 /**
  * POST /api/orders/verify-payment
- * Verify Razorpay payment signature
  */
 const verifyPayment = async (req, res) => {
     const { orderId, razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
 
-    // Verify signature
     const body = razorpayOrderId + '|' + razorpayPaymentId;
-    const expectedSignature = crypto
-        .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-        .update(body)
-        .digest('hex');
+    const expectedSignature = crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+        .update(body).digest('hex');
 
     if (expectedSignature !== razorpaySignature) {
         return errorResponse(res, 400, 'Payment verification failed. Invalid signature.');
     }
 
-    // Find and update order
-    const order = await Order.findOne({ _id: orderId, user: req.user.id });
+    const orderRes = await query('SELECT * FROM orders WHERE id = $1 AND user_id = $2', [orderId, req.user.id]);
+    const order = orderRes.rows[0];
     if (!order) return errorResponse(res, 404, 'Order not found.');
+    if (order.payment_status === PAYMENT_STATUS.PAID) return errorResponse(res, 409, 'Payment already processed.');
 
-    // Prevent duplicate processing
-    if (order.paymentStatus === PAYMENT_STATUS.PAID) {
-        return errorResponse(res, 409, 'Payment already processed.');
-    }
+    const paymentInfo = {
+        ...order.payment_info,
+        razorpayPaymentId,
+        razorpaySignature,
+        paidAt: new Date(),
+    };
 
-    // Update order
-    order.paymentStatus = PAYMENT_STATUS.PAID;
-    order.orderStatus = ORDER_STATUS.CONFIRMED;
-    order.paymentDetails.razorpayPaymentId = razorpayPaymentId;
-    order.paymentDetails.razorpaySignature = razorpaySignature;
-    order.paymentDetails.paidAt = new Date();
-    await order.save();
+    const updated = await query(
+        `UPDATE orders SET payment_status = $1, order_status = $2, payment_info = $3, updated_at = NOW()
+         WHERE id = $4 RETURNING *`,
+        [PAYMENT_STATUS.PAID, ORDER_STATUS.CONFIRMED, JSON.stringify(paymentInfo), orderId]
+    );
 
-    // Deduct stock and update vendor revenue
+    // Deduct stock
     for (const item of order.items) {
-        await Product.findByIdAndUpdate(item.product, {
-            $inc: { stock: -item.quantity, totalSold: item.quantity },
-        });
-        await Vendor.findByIdAndUpdate(item.vendor, {
-            $inc: { totalRevenue: item.subtotal },
-        });
+        await query('UPDATE products SET stock = stock - $1, total_sold = total_sold + $1 WHERE id = $2',
+            [item.quantity, item.productId]);
     }
+    // Clear cart
+    await query('UPDATE users SET cart = $1 WHERE id = $2', [JSON.stringify([]), req.user.id]);
 
-    // Clear user's cart
-    await User.findByIdAndUpdate(req.user.id, { cart: [] });
-
-    return successResponse(res, 200, 'Payment verified. Order confirmed!', order);
+    return successResponse(res, 200, 'Payment verified. Order confirmed!', updated.rows[0]);
 };
 
 /**
  * GET /api/orders
- * Get user's order history
  */
 const getUserOrders = async (req, res) => {
     const { page = 1, limit = 10 } = req.query;
-    const skip = (Number(page) - 1) * Number(limit);
-
-    const [orders, total] = await Promise.all([
-        Order.find({ user: req.user.id })
-            .sort('-createdAt')
-            .skip(skip)
-            .limit(Number(limit))
-            .populate('items.product', 'name images'),
-        Order.countDocuments({ user: req.user.id }),
+    const offset = (Number(page) - 1) * Number(limit);
+    const [dataRes, countRes] = await Promise.all([
+        query('SELECT * FROM orders WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
+            [req.user.id, Number(limit), offset]),
+        query('SELECT COUNT(*) FROM orders WHERE user_id = $1', [req.user.id]),
     ]);
-
-    return paginatedResponse(res, orders, Number(page), Number(limit), total);
+    return paginatedResponse(res, dataRes.rows, Number(page), Number(limit), Number(countRes.rows[0].count));
 };
 
 /**
  * GET /api/orders/:id
- * Get specific order
  */
 const getOrder = async (req, res) => {
-    const order = await Order.findOne({
-        _id: req.params.id,
-        user: req.user.id,
-    }).populate('items.product', 'name images');
-
-    if (!order) return errorResponse(res, 404, 'Order not found.');
-    return successResponse(res, 200, 'Order fetched.', order);
+    const result = await query('SELECT * FROM orders WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+    if (!result.rows[0]) return errorResponse(res, 404, 'Order not found.');
+    return successResponse(res, 200, 'Order fetched.', result.rows[0]);
 };
 
 /**
  * GET /api/vendor/orders
- * Get vendor's orders
  */
 const getVendorOrders = async (req, res) => {
     const { page = 1, limit = 10 } = req.query;
-    const skip = (Number(page) - 1) * Number(limit);
-
-    const [orders, total] = await Promise.all([
-        Order.find({ 'items.vendor': req.user.id })
-            .sort('-createdAt')
-            .skip(skip)
-            .limit(Number(limit))
-            .populate('user', 'name email')
-            .populate('items.product', 'name images price'),
-        Order.countDocuments({ 'items.vendor': req.user.id }),
+    const offset = (Number(page) - 1) * Number(limit);
+    const [dataRes, countRes] = await Promise.all([
+        query(`SELECT o.*, u.name as customer_name, u.email as customer_email
+               FROM orders o JOIN users u ON u.id = o.user_id
+               WHERE o.items @> $1 ORDER BY o.created_at DESC LIMIT $2 OFFSET $3`,
+            [JSON.stringify([{ vendorId: req.user.id }]), Number(limit), offset]),
+        query(`SELECT COUNT(*) FROM orders WHERE items @> $1`,
+            [JSON.stringify([{ vendorId: req.user.id }])]),
     ]);
-
-    return paginatedResponse(res, orders, Number(page), Number(limit), total);
+    return paginatedResponse(res, dataRes.rows, Number(page), Number(limit), Number(countRes.rows[0].count));
 };
 
 /**
  * GET /api/admin/orders
- * Get all orders (admin)
  */
 const getAllOrdersAdmin = async (req, res) => {
     const { page = 1, limit = 20 } = req.query;
-    const skip = (Number(page) - 1) * Number(limit);
-
-    const [orders, total] = await Promise.all([
-        Order.find().sort('-createdAt').skip(skip).limit(Number(limit))
-            .populate('user', 'name email')
-            .populate('items.vendor', 'shopName'),
-        Order.countDocuments(),
+    const offset = (Number(page) - 1) * Number(limit);
+    const [dataRes, countRes] = await Promise.all([
+        query(`SELECT o.*, u.name as customer_name FROM orders o LEFT JOIN users u ON u.id = o.user_id
+               ORDER BY o.created_at DESC LIMIT $1 OFFSET $2`, [Number(limit), offset]),
+        query('SELECT COUNT(*) FROM orders'),
     ]);
-
-    return paginatedResponse(res, orders, Number(page), Number(limit), total);
+    return paginatedResponse(res, dataRes.rows, Number(page), Number(limit), Number(countRes.rows[0].count));
 };
 
 /**
  * PUT /api/admin/orders/:id/status
- * Update order status (admin)
  */
 const updateOrderStatus = async (req, res) => {
     const { status } = req.body;
-    const order = await Order.findByIdAndUpdate(
-        req.params.id,
-        { orderStatus: status },
-        { new: true }
+    const result = await query(
+        'UPDATE orders SET order_status = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
+        [status, req.params.id]
     );
-    if (!order) return errorResponse(res, 404, 'Order not found.');
-    return successResponse(res, 200, 'Order status updated.', order);
+    if (!result.rows[0]) return errorResponse(res, 404, 'Order not found.');
+    return successResponse(res, 200, 'Order status updated.', result.rows[0]);
 };
 
-module.exports = {
-    createOrder,
-    verifyPayment,
-    getUserOrders,
-    getOrder,
-    getVendorOrders,
-    getAllOrdersAdmin,
-    updateOrderStatus,
-};
+module.exports = { createOrder, verifyPayment, getUserOrders, getOrder, getVendorOrders, getAllOrdersAdmin, updateOrderStatus };

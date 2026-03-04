@@ -1,34 +1,33 @@
-const mongoose = require('mongoose');
+const { Pool } = require('pg');
 
-/**
- * Connect to MongoDB Atlas
- */
+// Create connection pool
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false // Required for Render and many cloud providers
+  }
+});
+
+// Test connection
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGO_URI, {
-      serverSelectionTimeoutMS: 10000, // Fail fast after 10s if Atlas unreachable
-    });
-
-    console.log(`✅ MongoDB Atlas Connected: ${conn.connection.host}`);
-
-    // Handle connection events
-    mongoose.connection.on('error', (err) => {
-      console.error(`❌ MongoDB connection error: ${err.message}`);
-    });
-
-    mongoose.connection.on('disconnected', () => {
-      console.warn('⚠️  MongoDB disconnected.');
-    });
-
-    mongoose.connection.on('reconnected', () => {
-      console.log('✅ MongoDB reconnected.');
-    });
-
+    const client = await pool.connect();
+    console.log(`✅ PostgreSQL Connected on ${client.host}`);
+    client.release();
   } catch (error) {
-    console.error(`❌ MongoDB Connection Failed: ${error.message}`);
-    console.error('👉 Check: 1) MONGO_URI in .env  2) Atlas IP Whitelist  3) DB username/password');
+    console.error(`❌ PostgreSQL Connection Failed: ${error.message}`);
     process.exit(1);
   }
 };
 
-module.exports = connectDB;
+pool.on('error', (err) => {
+  console.error(`❌ Unexpected PostgreSQL error on idle client: ${err.message}`);
+  process.exit(-1);
+});
+
+module.exports = {
+  pool,
+  connectDB,
+  // Helper for running queries
+  query: (text, params) => pool.query(text, params),
+};
