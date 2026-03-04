@@ -7,6 +7,7 @@ const PORT = process.env.PORT || 5000;
 /**
  * Start server
  */
+
 const startServer = async () => {
     try {
         // Connect to MongoDB Atlas
