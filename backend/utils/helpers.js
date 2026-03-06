@@ -26,29 +26,33 @@ const generateBookingId = () => {
 const generateUUID = () => uuidv4();
 
 /**
- * Paginate a mongoose query
- * @param {Model} model - Mongoose model
- * @param {Object} query - Filter query
- * @param {Object} options - { page, limit, select, sort, populate }
+ * Paginate a PostgreSQL result set
+ * @param {string} table - Table name
+ * @param {string} where - WHERE clause
+ * @param {Array} params - Parameter values
+ * @param {Object} options - { page, limit, select, sort }
  */
-const paginate = async (model, query, options = {}) => {
+const paginate = async (table, where = 'TRUE', params = [], options = {}) => {
+    const { query } = require('../config/db');
     const page = parseInt(options.page) || 1;
     const limit = Math.min(parseInt(options.limit) || 12, 100);
-    const skip = (page - 1) * limit;
+    const offset = (page - 1) * limit;
 
-    let dbQuery = model.find(query).skip(skip).limit(limit);
+    const select = options.select || '*';
+    const sort = options.sort || 'created_at DESC';
 
-    if (options.select) dbQuery = dbQuery.select(options.select);
-    if (options.sort) dbQuery = dbQuery.sort(options.sort);
-    if (options.populate) {
-        const pops = Array.isArray(options.populate) ? options.populate : [options.populate];
-        pops.forEach((p) => (dbQuery = dbQuery.populate(p)));
-    }
+    const sql = `SELECT ${select} FROM ${table} WHERE ${where} ORDER BY ${sort} LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    const countSql = `SELECT COUNT(*) FROM ${table} WHERE ${where}`;
 
-    const [data, total] = await Promise.all([dbQuery, model.countDocuments(query)]);
+    const [result, countResult] = await Promise.all([
+        query(sql, [...params, limit, offset]),
+        query(countSql, params)
+    ]);
+
+    const total = parseInt(countResult.rows[0].count);
 
     return {
-        data,
+        data: result.rows,
         pagination: {
             currentPage: page,
             totalPages: Math.ceil(total / limit),
