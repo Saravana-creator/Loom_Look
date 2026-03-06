@@ -113,6 +113,19 @@ app.get('/api/health', (req, res) => {
 });
 
 // ─────────────────────────────────────────────
+//  ROOT ROUTE — Provide API Info
+// ─────────────────────────────────────────────
+app.get('/', (req, res) => {
+    res.status(200).json({
+        success: true,
+        message: '🧵 Welcome to Loom Look API — The Handmade Indian Saree Marketplace',
+        documentation: '/api/health',
+        version: '1.0.0',
+        environment: process.env.NODE_ENV,
+    });
+});
+
+// ─────────────────────────────────────────────
 //  ROUTES
 // ─────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
