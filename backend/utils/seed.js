@@ -24,7 +24,11 @@ const seed = async () => {
             );
             console.log(`✅ Admin user created: ${adminEmail}`);
         } else {
-            console.log(`ℹ️  Admin user already exists: ${adminEmail}`);
+            await pool.query(
+                `UPDATE users SET role = 'admin', password = $1 WHERE email = $2`,
+                [hashedPassword, adminEmail]
+            );
+            console.log(`✅ Admin user role/password updated: ${adminEmail}`);
         }
 
         console.log('✅ Seeding complete!');
