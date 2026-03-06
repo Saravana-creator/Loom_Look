@@ -190,19 +190,36 @@ const logout = async (req, res) => {
 const getMe = async (req, res) => {
     if (req.user.role === 'vendor') {
         const result = await query(
-            `SELECT v.*, u.name, u.email FROM vendors v JOIN users u ON u.id = v.user_id WHERE v.id = $1`,
+            `SELECT v.id as "_id", v.id as "id", v.*, u.name, u.email, v.company_name as "companyName", v.shop_name as "shopName"
+             FROM vendors v JOIN users u ON u.id = v.user_id WHERE v.id = $1`,
             [req.user.id]
         );
-        return successResponse(res, 200, 'Vendor profile fetched.', result.rows[0]);
+        const vendor = result.rows[0];
+        if (!vendor) return errorResponse(res, 404, 'Vendor not found.');
+
+        // Decrypt vendor specific fields
+        vendor.phone = decrypt(vendor.contact_phone_encrypted);
+        vendor.address = decrypt(vendor.business_address_encrypted);
+
+        return successResponse(res, 200, 'Vendor profile fetched.', vendor);
     }
-    const result = await query('SELECT * FROM users WHERE id = $1', [req.user.id]);
+
+    const result = await query(
+        `SELECT id as "_id", id, name, email, role, avatar, is_active as "isActive", 
+                is_suspended as "isSuspended", last_login as "lastLogin", created_at as "createdAt",
+                phone_encrypted, address_encrypted, city_encrypted, state_encrypted, pincode_encrypted
+         FROM users WHERE id = $1`,
+        [req.user.id]
+    );
     const user = result.rows[0];
     if (!user) return errorResponse(res, 404, 'User not found.');
+
     user.phone = decrypt(user.phone_encrypted);
     user.address = decrypt(user.address_encrypted);
     user.city = decrypt(user.city_encrypted);
     user.state = decrypt(user.state_encrypted);
     user.pincode = decrypt(user.pincode_encrypted);
+
     return successResponse(res, 200, 'Profile fetched.', user);
 };
 
@@ -212,7 +229,7 @@ const updateProfile = async (req, res) => {
     if (req.user.role === 'vendor') {
         const result = await query(
             `UPDATE vendors SET company_name = $1, contact_phone_encrypted = $2, logo = $3, updated_at = NOW()
-             WHERE id = $4 RETURNING *`,
+             WHERE id = $4 RETURNING id as "_id", id, *`,
             [name, encrypt(phone || ''), avatar || '', req.user.id]
         );
         return successResponse(res, 200, 'Vendor profile updated.', result.rows[0]);
@@ -221,7 +238,7 @@ const updateProfile = async (req, res) => {
     const result = await query(
         `UPDATE users SET name = $1, avatar = $2, phone_encrypted = $3, address_encrypted = $4,
          city_encrypted = $5, state_encrypted = $6, pincode_encrypted = $7, updated_at = NOW()
-         WHERE id = $8 RETURNING id, name, email, role, avatar`,
+         WHERE id = $8 RETURNING id as "_id", id, name, email, role, avatar, is_active as "isActive"`,
         [name, avatar || '', encrypt(phone || ''), encrypt(address || ''),
             encrypt(city || ''), encrypt(state || ''), encrypt(pincode || ''), req.user.id]
     );

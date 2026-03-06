@@ -60,6 +60,7 @@ const sendTokenResponse = (user, statusCode, res, role = 'user', preGeneratedRef
         accessToken,
         user: {
             id: user.id || user._id,
+            _id: user.id || user._id, // Compatibility for frontend
             name: user.name,
             email: user.email,
             role: user.role || role,

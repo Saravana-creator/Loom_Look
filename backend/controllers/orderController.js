@@ -171,7 +171,8 @@ const getAllOrdersAdmin = async (req, res) => {
     const { page = 1, limit = 20 } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
     const [dataRes, countRes] = await Promise.all([
-        query(`SELECT o.*, u.name as customer_name FROM orders o LEFT JOIN users u ON u.id = o.user_id
+        query(`SELECT o.id as "_id", o.order_number as "orderNumber", o.items, o.total_amount as "totalAmount", o.order_status as "orderStatus", o.payment_status as "paymentStatus", o.created_at as "createdAt", u.name as "customerName" 
+               FROM orders o LEFT JOIN users u ON u.id = o.user_id
                ORDER BY o.created_at DESC LIMIT $1 OFFSET $2`, [Number(limit), offset]),
         query('SELECT COUNT(*) FROM orders'),
     ]);

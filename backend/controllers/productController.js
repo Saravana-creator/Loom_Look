@@ -139,7 +139,7 @@ const getAllProductsAdmin = async (req, res) => {
     const offset = (Number(page) - 1) * Number(limit);
 
     const [dataRes, countRes] = await Promise.all([
-        query(`SELECT p.*, v.shop_name FROM products p LEFT JOIN vendors v ON v.id = p.vendor_id
+        query(`SELECT p.id as "_id", p.*, v.shop_name as "shopName" FROM products p LEFT JOIN vendors v ON v.id = p.vendor_id
                ORDER BY p.created_at DESC LIMIT $1 OFFSET $2`, [Number(limit), offset]),
         query('SELECT COUNT(*) FROM products'),
     ]);

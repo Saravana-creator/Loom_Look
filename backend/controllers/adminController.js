@@ -8,24 +8,41 @@ const bcrypt = require('bcryptjs');
 
 const getDashboard = async (req, res) => {
     const [usersRes, vendorsRes, productsRes, ordersRes, sessionsRes, revenueRes, recentOrdersRes, pendingVendorsRes] = await Promise.all([
-        query(`SELECT COUNT(*) FROM users WHERE role = 'user'`),
-        query(`SELECT COUNT(*) FROM vendors`),
-        query(`SELECT COUNT(*) FROM products WHERE is_active = true`),
-        query(`SELECT COUNT(*) FROM orders`),
-        query(`SELECT COUNT(*) FROM live_sessions`),
+        query(`SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '1 day') as active_today FROM users WHERE role = 'user'`),
+        query(`SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status = 'pending') as pending FROM vendors`),
+        query(`SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE stock = 0) as out_of_stock FROM products WHERE is_active = true`),
+        query(`SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE order_status = 'Processing') as pending FROM orders`),
+        query(`SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE scheduled_at > NOW()) as upcoming FROM live_sessions`),
         query(`SELECT COALESCE(SUM(total_amount), 0) as total FROM orders WHERE payment_status = 'paid'`),
-        query(`SELECT o.*, u.name as customer_name, u.email as customer_email FROM orders o LEFT JOIN users u ON u.id = o.user_id ORDER BY o.created_at DESC LIMIT 5`),
-        query(`SELECT * FROM vendors WHERE status = 'pending' ORDER BY created_at DESC LIMIT 5`),
+        query(`SELECT o.id as "_id", o.*, u.name as customer_name, u.email as customer_email FROM orders o LEFT JOIN users u ON u.id = o.user_id ORDER BY o.created_at DESC LIMIT 5`),
+        query(`SELECT id as "_id", * FROM vendors WHERE status = 'pending' ORDER BY created_at DESC LIMIT 5`),
     ]);
 
     return successResponse(res, 200, 'Dashboard data fetched.', {
         stats: {
-            users: Number(usersRes.rows[0].count),
-            vendors: Number(vendorsRes.rows[0].count),
-            products: Number(productsRes.rows[0].count),
-            orders: Number(ordersRes.rows[0].count),
-            sessions: Number(sessionsRes.rows[0].count),
-            revenue: Number(revenueRes.rows[0].total),
+            users: {
+                total: Number(usersRes.rows[0].total),
+                activeToday: Number(usersRes.rows[0].active_today),
+            },
+            vendors: {
+                total: Number(vendorsRes.rows[0].total),
+                pending: Number(vendorsRes.rows[0].pending),
+            },
+            products: {
+                total: Number(productsRes.rows[0].total),
+                outOfStock: Number(productsRes.rows[0].out_of_stock),
+            },
+            orders: {
+                total: Number(ordersRes.rows[0].total),
+                pending: Number(ordersRes.rows[0].pending),
+            },
+            sessions: {
+                total: Number(sessionsRes.rows[0].total),
+                upcoming: Number(sessionsRes.rows[0].upcoming),
+            },
+            revenue: {
+                total: Number(revenueRes.rows[0].total),
+            }
         },
         recentOrders: recentOrdersRes.rows,
         pendingVendors: pendingVendorsRes.rows,
@@ -52,7 +69,7 @@ const getUsers = async (req, res) => {
     params.push(Number(limit), offset);
 
     const [dataRes, countRes] = await Promise.all([
-        query(`SELECT id, name, email, role, avatar, is_active, is_suspended, last_login, created_at FROM users ${where} ORDER BY created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`, params),
+        query(`SELECT id as "_id", name, email, role, avatar, is_active as "isActive", is_suspended as "isSuspended", last_login as "lastLogin", created_at as "createdAt" FROM users ${where} ORDER BY created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`, params),
         query(`SELECT COUNT(*) FROM users ${where}`, params.slice(0, params.length - 2)),
     ]);
     return paginatedResponse(res, dataRes.rows, Number(page), Number(limit), Number(countRes.rows[0].count));
@@ -60,7 +77,7 @@ const getUsers = async (req, res) => {
 
 const suspendUser = async (req, res) => {
     const result = await query(
-        `UPDATE users SET is_suspended = true, is_active = false WHERE id = $1 RETURNING id, name, email, is_suspended`,
+        `UPDATE users SET is_suspended = true, is_active = false WHERE id = $1 RETURNING id as "_id", name, email, is_suspended as "isSuspended"`,
         [req.params.id]
     );
     if (!result.rows[0]) return errorResponse(res, 404, 'User not found.');
@@ -69,7 +86,7 @@ const suspendUser = async (req, res) => {
 
 const activateUser = async (req, res) => {
     const result = await query(
-        `UPDATE users SET is_suspended = false, is_active = true WHERE id = $1 RETURNING id, name, email, is_suspended`,
+        `UPDATE users SET is_suspended = false, is_active = true WHERE id = $1 RETURNING id as "_id", name, email, is_suspended as "isSuspended"`,
         [req.params.id]
     );
     if (!result.rows[0]) return errorResponse(res, 404, 'User not found.');
@@ -77,7 +94,7 @@ const activateUser = async (req, res) => {
 };
 
 const deleteUser = async (req, res) => {
-    const result = await query(`DELETE FROM users WHERE id = $1 RETURNING id`, [req.params.id]);
+    const result = await query(`DELETE FROM users WHERE id = $1 RETURNING id as "_id"`, [req.params.id]);
     if (!result.rows[0]) return errorResponse(res, 404, 'User not found.');
     return successResponse(res, 200, 'User deleted.');
 };
@@ -90,7 +107,7 @@ const getVendors = async (req, res) => {
     const conditions = [];
     const params = [];
 
-    if (status) { params.push(status); conditions.push(`v.status = $${params.length}`); }
+    if (status && status !== 'all') { params.push(status); conditions.push(`v.status = $${params.length}`); }
     if (search) {
         params.push(`%${search}%`);
         conditions.push(`(v.company_name ILIKE $${params.length} OR v.shop_name ILIKE $${params.length} OR v.contact_email ILIKE $${params.length})`);
@@ -100,7 +117,9 @@ const getVendors = async (req, res) => {
     params.push(Number(limit), offset);
 
     const [dataRes, countRes] = await Promise.all([
-        query(`SELECT v.*, u.name FROM vendors v LEFT JOIN users u ON u.id = v.user_id ${where} ORDER BY v.created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`, params),
+        query(`SELECT v.id as "_id", v.company_name as "companyName", v.shop_name as "shopName", v.contact_email as "email", v.status, v.created_at as "createdAt", u.name 
+               FROM vendors v LEFT JOIN users u ON u.id = v.user_id 
+               ${where} ORDER BY v.created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`, params),
         query(`SELECT COUNT(*) FROM vendors v ${where}`, params.slice(0, params.length - 2)),
     ]);
     return paginatedResponse(res, dataRes.rows, Number(page), Number(limit), Number(countRes.rows[0].count));
@@ -108,7 +127,7 @@ const getVendors = async (req, res) => {
 
 const approveVendor = async (req, res) => {
     const result = await query(
-        `UPDATE vendors SET status = 'approved', is_verified = true, verification_date = NOW() WHERE id = $1 RETURNING *`,
+        `UPDATE vendors SET status = 'approved', is_verified = true, verification_date = NOW() WHERE id = $1 RETURNING id as "_id", *`,
         [req.params.id]
     );
     if (!result.rows[0]) return errorResponse(res, 404, 'Vendor not found.');
@@ -119,7 +138,7 @@ const approveVendor = async (req, res) => {
 
 const rejectVendor = async (req, res) => {
     const result = await query(
-        `UPDATE vendors SET status = 'rejected' WHERE id = $1 RETURNING *`, [req.params.id]
+        `UPDATE vendors SET status = 'rejected' WHERE id = $1 RETURNING id as "_id", *`, [req.params.id]
     );
     if (!result.rows[0]) return errorResponse(res, 404, 'Vendor not found.');
     return successResponse(res, 200, 'Vendor rejected.', result.rows[0]);
@@ -127,14 +146,14 @@ const rejectVendor = async (req, res) => {
 
 const suspendVendor = async (req, res) => {
     const result = await query(
-        `UPDATE vendors SET status = 'suspended' WHERE id = $1 RETURNING *`, [req.params.id]
+        `UPDATE vendors SET status = 'suspended' WHERE id = $1 RETURNING id as "_id", *`, [req.params.id]
     );
     if (!result.rows[0]) return errorResponse(res, 404, 'Vendor not found.');
     return successResponse(res, 200, 'Vendor suspended.', result.rows[0]);
 };
 
 const deleteVendor = async (req, res) => {
-    const result = await query(`DELETE FROM vendors WHERE id = $1 RETURNING id`, [req.params.id]);
+    const result = await query(`DELETE FROM vendors WHERE id = $1 RETURNING id as "_id"`, [req.params.id]);
     if (!result.rows[0]) return errorResponse(res, 404, 'Vendor not found.');
     return successResponse(res, 200, 'Vendor deleted.');
 };
