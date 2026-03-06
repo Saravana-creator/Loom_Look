@@ -72,7 +72,11 @@ export const AuthProvider = ({ children }) => {
             dispatch({ type: 'LOGIN_SUCCESS', payload: { user, accessToken } });
             return { success: true, user };
         } catch (err) {
-            const message = err.response?.data?.message || 'Login failed.';
+            const errorData = err.response?.data;
+            let message = errorData?.message || 'Login failed.';
+            if (errorData?.errors && Array.isArray(errorData.errors) && errorData.errors.length > 0) {
+                message = errorData.errors[0].msg;
+            }
             dispatch({ type: 'AUTH_ERROR', payload: message });
             return { success: false, message };
         }
@@ -97,7 +101,11 @@ export const AuthProvider = ({ children }) => {
                 return { success: true, user };
             }
         } catch (err) {
-            const message = err.response?.data?.message || 'Registration failed.';
+            const errorData = err.response?.data;
+            let message = errorData?.message || 'Registration failed.';
+            if (errorData?.errors && Array.isArray(errorData.errors) && errorData.errors.length > 0) {
+                message = errorData.errors[0].msg;
+            }
             dispatch({ type: 'AUTH_ERROR', payload: message });
             return { success: false, message };
         }
