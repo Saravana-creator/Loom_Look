@@ -35,15 +35,15 @@ const verifyRefreshToken = (token) => {
 /**
  * Send token response with HTTP-only cookie
  */
-const sendTokenResponse = (user, statusCode, res, role = 'user') => {
+const sendTokenResponse = (user, statusCode, res, role = 'user', preGeneratedRefreshToken = null) => {
     const payload = {
-        id: user._id,
+        id: user.id || user._id, // Support both during migration if needed, though id is preferred
         role: user.role || role,
         email: user.email,
     };
 
     const accessToken = generateAccessToken(payload);
-    const refreshToken = generateRefreshToken(payload);
+    const refreshToken = preGeneratedRefreshToken || generateRefreshToken(payload);
 
     // HTTP-only cookie options
     const cookieOptions = {
@@ -59,13 +59,13 @@ const sendTokenResponse = (user, statusCode, res, role = 'user') => {
         success: true,
         accessToken,
         user: {
-            _id: user._id,
+            id: user.id || user._id,
             name: user.name,
             email: user.email,
             role: user.role || role,
             avatar: user.avatar,
             ...(role === 'vendor' && {
-                shopName: user.shopName,
+                shopName: user.shopName || user.shop_name,
                 status: user.status,
             }),
         },

@@ -30,9 +30,12 @@ const registerUser = async (req, res) => {
     );
 
     const user = result.rows[0];
-    const refreshToken = sendTokenResponse(user, 201, res, ROLES.USER);
+    const payload = { id: user.id, role: ROLES.USER, email: user.email };
+    const refreshToken = generateRefreshToken(payload);
 
     await query('UPDATE users SET refresh_token = $1, last_login = NOW() WHERE id = $2', [refreshToken, user.id]);
+
+    sendTokenResponse(user, 201, res, ROLES.USER, refreshToken);
 };
 
 /**
@@ -49,8 +52,12 @@ const loginUser = async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return errorResponse(res, 401, 'Invalid email or password.');
 
-    const refreshToken = sendTokenResponse(user, 200, res, ROLES.USER);
+    const payload = { id: user.id, role: ROLES.USER, email: user.email };
+    const refreshToken = generateRefreshToken(payload);
+
     await query('UPDATE users SET refresh_token = $1, last_login = NOW() WHERE id = $2', [refreshToken, user.id]);
+
+    sendTokenResponse(user, 200, res, ROLES.USER, refreshToken);
 };
 
 // ─────────────────────────────────────────────
@@ -115,9 +122,19 @@ const loginVendor = async (req, res) => {
     if (!isMatch) return errorResponse(res, 401, 'Invalid email or password.');
 
     // Use vendor_id as the JWT id so vendor endpoints work
-    const tokenUser = { id: vendor.vendor_id, email: vendor.email, role: ROLES.VENDOR };
-    const refreshToken = sendTokenResponse(tokenUser, 200, res, ROLES.VENDOR);
+    const tokenUser = {
+        id: vendor.vendor_id,
+        email: vendor.email,
+        role: ROLES.VENDOR,
+        shopName: vendor.shop_name,
+        status: vendor.status
+    };
+    const payload = { id: tokenUser.id, role: ROLES.VENDOR, email: tokenUser.email };
+    const refreshToken = generateRefreshToken(payload);
+
     await query('UPDATE users SET refresh_token = $1, last_login = NOW() WHERE id = $2', [refreshToken, vendor.id]);
+
+    sendTokenResponse(tokenUser, 200, res, ROLES.VENDOR, refreshToken);
 };
 
 // ─────────────────────────────────────────────
@@ -137,8 +154,12 @@ const loginAdmin = async (req, res) => {
     const isMatch = await bcrypt.compare(password, admin.password);
     if (!isMatch) return errorResponse(res, 401, 'Invalid admin credentials.');
 
-    const refreshToken = sendTokenResponse(admin, 200, res, ROLES.ADMIN);
+    const payload = { id: admin.id, role: ROLES.ADMIN, email: admin.email };
+    const refreshToken = generateRefreshToken(payload);
+
     await query('UPDATE users SET refresh_token = $1, last_login = NOW() WHERE id = $2', [refreshToken, admin.id]);
+
+    sendTokenResponse(admin, 200, res, ROLES.ADMIN, refreshToken);
 };
 
 // ─────────────────────────────────────────────
