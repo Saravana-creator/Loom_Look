@@ -150,6 +150,7 @@ const loginAdmin = async (req, res) => {
     const result = await query('SELECT * FROM users WHERE email = $1 AND role = $2', [email, ROLES.ADMIN]);
     const admin = result.rows[0];
     if (!admin) return errorResponse(res, 401, 'Invalid admin credentials.');
+    if (admin.is_suspended) return errorResponse(res, 403, 'Admin account is suspended.');
 
     const isMatch = await bcrypt.compare(password, admin.password);
     if (!isMatch) return errorResponse(res, 401, 'Invalid admin credentials.');

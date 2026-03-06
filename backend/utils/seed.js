@@ -19,13 +19,13 @@ const seed = async () => {
         const existing = await pool.query('SELECT id FROM users WHERE email = $1', [adminEmail]);
         if (existing.rows.length === 0) {
             await pool.query(
-                `INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, 'admin')`,
+                `INSERT INTO users (name, email, password, role, is_active, is_suspended) VALUES ($1, $2, $3, 'admin', true, false)`,
                 ['Admin', adminEmail, hashedPassword]
             );
             console.log(`✅ Admin user created: ${adminEmail}`);
         } else {
             await pool.query(
-                `UPDATE users SET role = 'admin', password = $1 WHERE email = $2`,
+                `UPDATE users SET role = 'admin', password = $1, is_active = true, is_suspended = false WHERE email = $2`,
                 [hashedPassword, adminEmail]
             );
             console.log(`✅ Admin user role/password updated: ${adminEmail}`);

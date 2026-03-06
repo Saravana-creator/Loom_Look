@@ -27,9 +27,9 @@ const authenticate = async (req, res, next) => {
         } else {
             const result = await query(`SELECT id, is_active, is_suspended FROM users WHERE id = $1`, [decoded.id]);
             const user = result.rows[0];
-            if (!user || !user.is_active || user.is_suspended) {
-                return errorResponse(res, 401, 'User account not found or suspended.');
-            }
+            if (!user) return errorResponse(res, 401, 'User account not found.');
+            if (user.is_suspended === true) return errorResponse(res, 403, 'Your account has been suspended.');
+            if (user.is_active === false) return errorResponse(res, 401, 'Your account is currently inactive.');
         }
 
         next();
