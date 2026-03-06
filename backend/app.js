@@ -33,28 +33,39 @@ app.use(
     })
 );
 
-// CORS — handle preflight OPTIONS explicitly
+// CORS configuration
 const allowedOrigins = [
     'https://loomlook.vercel.app',
     'http://localhost:3000',
     'http://127.0.0.1:3000',
 ];
 
-app.use(
-    cors({
-        origin: function (origin, callback) {
-            if (!origin) return callback(null, true); // Allow non-browser requests
-            if (allowedOrigins.includes(origin)) return callback(null, true);
-            return callback(new Error('Not allowed by CORS'));
-        },
-        credentials: true,
-        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
-    })
-);
+const corsOptions = {
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+
+        // Normalize origin by removing trailing slash
+        const normalizedOrigin = origin.replace(/\/$/, '');
+        const normalizedAllowedOrigins = allowedOrigins.map(o => o.replace(/\/$/, ''));
+
+        if (normalizedAllowedOrigins.indexOf(normalizedOrigin) !== -1 || process.env.NODE_ENV === 'development') {
+            callback(null, true);
+        } else {
+            console.error(`CORS blocked for origin: ${origin}`);
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+    optionsSuccessStatus: 200 // some legacy browsers (IE11, various SmartTVs) choke on 204
+};
+
+app.use(cors(corsOptions));
 
 // Explicitly handle preflight requests for all routes
-app.options('*', cors());
+app.options('*', cors(corsOptions));
 
 // Rate limiting
 const limiter = rateLimit({

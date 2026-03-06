@@ -7,11 +7,15 @@ const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
     try {
+        console.log(`\n🔍 Checking Database Connection...`);
         // Connect to PostgreSQL
         await connectDB();
+        console.log(`✅ DB Connected.`);
 
+        console.log(`🔄 Initializing Database Schema...`);
         // Create tables if they don't exist
         await initDb();
+        console.log(`✅ Schema Initialized.`);
 
         const server = app.listen(PORT, () => {
             console.log(`\n🪡  =======================================`);
