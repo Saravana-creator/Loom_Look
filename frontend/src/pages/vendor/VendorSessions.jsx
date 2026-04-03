@@ -117,6 +117,8 @@ const VendorSessions = () => {
         try {
             const payload = {
                 ...form,
+                // datetime-local gives local time string — convert to UTC ISO for backend
+                scheduledAt: form.scheduledAt ? new Date(form.scheduledAt).toISOString() : undefined,
                 duration: Number(form.duration),
                 maxParticipants: Number(form.maxParticipants),
             };
