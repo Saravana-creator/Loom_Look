@@ -20,7 +20,9 @@ const getSessions = async (req, res) => {
     params.push(Number(limit), offset);
 
     const [dataRes, countRes] = await Promise.all([
-        query(`SELECT ls.id as "_id", ls.*, v.shop_name, v.logo as vendor_avatar FROM live_sessions ls
+        query(`SELECT ls.id as "_id", ls.*, ls.scheduled_at as "scheduledAt", ls.duration_minutes as "duration",
+                     ls.max_participants as "maxParticipants", ls.price as "price",
+                     v.shop_name, v.logo as vendor_avatar FROM live_sessions ls
                LEFT JOIN vendors v ON v.id = ls.vendor_id ${where}
                ORDER BY ls.scheduled_at ASC LIMIT $${params.length - 1} OFFSET $${params.length}`, params),
         query(`SELECT COUNT(*) FROM live_sessions ls ${where}`, params.slice(0, params.length - 2)),
@@ -34,7 +36,9 @@ const getSessions = async (req, res) => {
  */
 const getSession = async (req, res) => {
     const result = await query(
-        `SELECT ls.id as "_id", ls.*, v.shop_name, v.logo as vendor_avatar, v.description as vendor_description
+        `SELECT ls.id as "_id", ls.*, ls.scheduled_at as "scheduledAt", ls.duration_minutes as "duration",
+                ls.max_participants as "maxParticipants", ls.price as "price",
+                v.shop_name, v.logo as vendor_avatar, v.description as vendor_description
          FROM live_sessions ls LEFT JOIN vendors v ON v.id = ls.vendor_id WHERE ls.id = $1`,
         [req.params.id]
     );
@@ -117,7 +121,7 @@ const getVendorSessions = async (req, res) => {
     const { page = 1, limit = 10 } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
     const [dataRes, countRes] = await Promise.all([
-        query('SELECT id as "_id", * FROM live_sessions WHERE vendor_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
+        query('SELECT id as "_id", *, scheduled_at as "scheduledAt", duration_minutes as "duration", max_participants as "maxParticipants", price FROM live_sessions WHERE vendor_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
             [req.user.id, Number(limit), offset]),
         query('SELECT COUNT(*) FROM live_sessions WHERE vendor_id = $1', [req.user.id]),
     ]);

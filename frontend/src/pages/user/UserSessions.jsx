@@ -54,7 +54,7 @@ const UserSessions = () => {
                         action={<Link to="/sessions" className="btn btn-primary">Browse Sessions</Link>}
                     />
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md-grid-cols-2 lg-grid-cols-3 gap-6">
                         {bookings.map((booking) => {
                             const isLive = isSessionLive(booking.scheduledAt, booking.durationMinutes);
                             const isUpcoming = isSessionUpcoming(booking.scheduledAt);

@@ -31,11 +31,25 @@ const VendorSessions = () => {
 
     const openNew = () => { setForm(defaultForm); setEditSession(null); setShowForm(true); };
     const openEdit = (s) => {
+        const dateStr = s.scheduledAt;
+        let formattedDate = '';
+        if (dateStr) {
+            try {
+                formattedDate = new Date(dateStr).toISOString().slice(0, 16);
+            } catch (e) {
+                console.error("Invalid date", dateStr);
+            }
+        }
         setForm({
-            title: s.title, description: s.description, category: s.category,
-            scheduledAt: new Date(s.scheduledAt).toISOString().slice(0, 16),
-            duration: s.duration, maxParticipants: s.maxParticipants, price: s.price,
-            videoLink: s.videoLink || '', platform: s.platform || 'Zoom',
+            title: s.title || '',
+            description: s.description || '',
+            category: s.category || 'Silk Sarees',
+            scheduledAt: formattedDate,
+            duration: s.duration || 60,
+            maxParticipants: s.maxParticipants || 50,
+            price: s.price || 0,
+            videoLink: s.videoLink || '',
+            platform: s.platform || 'Zoom',
         });
         setEditSession(s);
         setShowForm(true);
@@ -92,7 +106,7 @@ const VendorSessions = () => {
                             {sessions.map((s) => (
                                 <tr key={s._id}>
                                     <td style={{ fontWeight: 600 }}>{s.title}</td>
-                                    <td>{new Date(s.scheduledAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</td>
+                                    <td>{s.scheduledAt ? new Date(s.scheduledAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : 'Not Scheduled'}</td>
                                     <td>{s.duration} min</td>
                                     <td>{s.bookedUsers?.length || 0}/{s.maxParticipants}</td>
                                     <td><Badge status={s.status} /></td>
@@ -126,7 +140,7 @@ const VendorSessions = () => {
                                 <label className="form-label">Description</label>
                                 <textarea name="description" className="form-control" rows={3} value={form.description} onChange={handleChange} />
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                            <div className="grid grid-cols-1 md-grid-cols-2 gap-4">
                                 <div className="form-group">
                                     <label className="form-label">Scheduled Date/Time *</label>
                                     <input type="datetime-local" name="scheduledAt" className="form-control" value={form.scheduledAt} onChange={handleChange} required />
@@ -143,10 +157,10 @@ const VendorSessions = () => {
                                     <label className="form-label">Entry Fee (₹)</label>
                                     <input type="number" name="price" className="form-control" value={form.price} onChange={handleChange} min={0} />
                                 </div>
-                                <div className="form-group">
+                                <div className="form-group" style={{ gridColumn: 'span 1' }}>
                                     <label className="form-label">Platform</label>
                                     <select name="platform" className="form-control" value={form.platform} onChange={handleChange}>
-                                        {['Zoom', 'Google Meet', 'Microsoft Teams', 'YouTube Live', 'Other'].map((p) => <option key={p}>{p}</option>)}
+                                        {['Zoom', 'Google Meet', 'Microsoft Teams', 'YouTube Live', 'Other'].map((p) => <option key={p} value={p}>{p}</option>)}
                                     </select>
                                 </div>
                             </div>

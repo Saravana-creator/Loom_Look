@@ -72,9 +72,9 @@ const ProfilePage = () => {
                     <p style={{ color: 'var(--text-light)' }}>Manage your personal information and delivery preferences</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 md-grid-cols-3 gap-8">
                     {/* Sidebar / Avatar */}
-                    <div className="md:col-span-1">
+                    <div className="md-col-span-1">
                         <div style={{ 
                             background: 'white', 
                             padding: 30, 
@@ -123,14 +123,8 @@ const ProfilePage = () => {
                     </div>
 
                     {/* Main Form */}
-                    <div className="md:col-span-2">
-                        <form onSubmit={handleSubmit} style={{ 
-                            background: 'white', 
-                            padding: 40, 
-                            borderRadius: 'var(--radius-xl)', 
-                            border: '1px solid var(--border-light)',
-                            boxShadow: '0 4px 20px rgba(0,0,0,0.03)'
-                        }}>
+                    <div className="md-col-span-2">
+                        <form onSubmit={handleSubmit} className="profile-form">
                             <h4 style={{ fontWeight: 700, marginBottom: 24, fontSize: '1.1rem' }}>Personal Details</h4>
                             
                             <div className="form-group">

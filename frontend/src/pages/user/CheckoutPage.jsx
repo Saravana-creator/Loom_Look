@@ -110,20 +110,20 @@ const CheckoutPage = () => {
 
             <div className="page-content">
                 <form onSubmit={handlePayment}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 32, alignItems: 'start' }}>
+                    <div className="grid grid-cols-1 md-grid-cols-3 gap-8" style={{ alignItems: 'start' }}>
                         {/* Shipping Address */}
-                        <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', padding: 28, border: '1px solid var(--border-light)' }}>
+                        <div className="md-col-span-2" style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', padding: 28, border: '1px solid var(--border-light)' }}>
                             <h3 style={{ marginBottom: 24 }}>📦 Shipping Address</h3>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                                <div className="form-group" style={{ gridColumn: '1/-1' }}>
+                            <div className="grid grid-cols-1 md-grid-cols-2 gap-4">
+                                <div className="form-group" style={{ gridColumn: 'span 2' }}>
                                     <label className="form-label">Full Name *</label>
                                     <input className="form-control" name="fullName" value={address.fullName} onChange={handleChange} required />
                                 </div>
-                                <div className="form-group" style={{ gridColumn: '1/-1' }}>
+                                <div className="form-group" style={{ gridColumn: 'span 2' }}>
                                     <label className="form-label">Phone *</label>
                                     <input className="form-control" name="phone" value={address.phone} onChange={handleChange} required pattern="[6-9]\d{9}" />
                                 </div>
-                                <div className="form-group" style={{ gridColumn: '1/-1' }}>
+                                <div className="form-group" style={{ gridColumn: 'span 2' }}>
                                     <label className="form-label">Street Address *</label>
                                     <textarea className="form-control" name="street" value={address.street} onChange={handleChange} rows={2} required />
                                 </div>
@@ -143,7 +143,7 @@ const CheckoutPage = () => {
                         </div>
 
                         {/* Order Summary */}
-                        <div>
+                        <div className="md-col-span-1">
                             <div className="order-summary">
                                 <h3 style={{ fontFamily: 'Playfair Display, serif', marginBottom: 20 }}>Order Summary</h3>
                                 <div style={{ maxHeight: 240, overflowY: 'auto', marginBottom: 16 }}>
