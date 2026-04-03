@@ -12,7 +12,7 @@ const PLATFORMS = ['Zoom', 'Google Meet', 'Microsoft Teams', 'YouTube Live', 'Ot
 
 const defaultForm = {
     title: '', description: '', category: 'Silk Sarees', scheduledAt: '',
-    duration: 60, maxParticipants: 50, price: 0, videoLink: '', platform: 'Zoom',
+    duration: 60, maxParticipants: 50, videoLink: '', platform: 'Zoom',
 };
 
 const toLocalDatetimeString = (dateInput) => {
@@ -98,8 +98,7 @@ const VendorSessions = () => {
             scheduledAt: toLocalDatetimeString(s.scheduledAt),
             duration: s.duration || 60,
             maxParticipants: s.maxParticipants || 50,
-            price: s.price || 0,
-            videoLink: '',      // never pre-fill encrypted link
+            videoLink: '',
             platform: s.platform || 'Zoom',
         });
         setEditSession(s);
@@ -120,7 +119,6 @@ const VendorSessions = () => {
                 ...form,
                 duration: Number(form.duration),
                 maxParticipants: Number(form.maxParticipants),
-                price: Number(form.price),
             };
             if (editSession) {
                 await sessionService.updateSession(editSession._id, payload);
@@ -327,18 +325,6 @@ const VendorSessions = () => {
                                         value={form.maxParticipants}
                                         onChange={handleChange}
                                         min={1}
-                                    />
-                                </div>
-                                <div className="form-group">
-                                    <label className="form-label">Entry Fee (₹)</label>
-                                    <input
-                                        type="number"
-                                        name="price"
-                                        className="form-control"
-                                        value={form.price}
-                                        onChange={handleChange}
-                                        min={0}
-                                        placeholder="0 for free"
                                     />
                                 </div>
                             </div>

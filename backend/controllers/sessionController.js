@@ -20,8 +20,12 @@ const getSessions = async (req, res) => {
     params.push(Number(limit), offset);
 
     const [dataRes, countRes] = await Promise.all([
-        query(`SELECT ls.id as "_id", ls.*, ls.scheduled_at as "scheduledAt", ls.duration_minutes as "duration",
-                     ls.max_participants as "maxParticipants", ls.price as "price",
+        query(`SELECT ls.id as "_id", ls.title, ls.description, ls.status, ls.tags, ls.thumbnail,
+                     ls.scheduled_at as "scheduledAt",
+                     ls.duration_minutes as "duration",
+                     ls.max_participants as "maxParticipants",
+                     ls.registered_users as "bookedUsers",
+                     ls.is_featured as "isFeatured",
                      v.shop_name, v.logo as vendor_avatar FROM live_sessions ls
                LEFT JOIN vendors v ON v.id = ls.vendor_id ${where}
                ORDER BY ls.scheduled_at ASC LIMIT $${params.length - 1} OFFSET $${params.length}`, params),
@@ -36,8 +40,13 @@ const getSessions = async (req, res) => {
  */
 const getSession = async (req, res) => {
     const result = await query(
-        `SELECT ls.id as "_id", ls.*, ls.scheduled_at as "scheduledAt", ls.duration_minutes as "duration",
-                ls.max_participants as "maxParticipants", ls.price as "price",
+        `SELECT ls.id as "_id", ls.title, ls.description, ls.status, ls.tags, ls.thumbnail,
+                ls.scheduled_at as "scheduledAt",
+                ls.duration_minutes as "duration",
+                ls.max_participants as "maxParticipants",
+                ls.registered_users as "bookedUsers",
+                ls.is_featured as "isFeatured",
+                ls.vendor_id as "vendorId",
                 v.shop_name, v.logo as vendor_avatar, v.description as vendor_description
          FROM live_sessions ls LEFT JOIN vendors v ON v.id = ls.vendor_id WHERE ls.id = $1`,
         [req.params.id]
@@ -74,10 +83,20 @@ const createSession = async (req, res) => {
 
     const result = await query(
         `INSERT INTO live_sessions (title, description, vendor_id, scheduled_at, duration_minutes, max_participants, meeting_link, tags, is_featured, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, 'upcoming') RETURNING id as "_id", *`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, 'upcoming')
+         RETURNING
+           id as "_id", title, description, status, tags, thumbnail,
+           scheduled_at as "scheduledAt",
+           duration_minutes as "duration",
+           max_participants as "maxParticipants",
+           registered_users as "bookedUsers",
+           is_featured as "isFeatured",
+           vendor_id as "vendorId",
+           created_at as "createdAt",
+           updated_at as "updatedAt"`,
         [title, description, req.user.id, new Date(scheduledAt),
             duration || 60, maxParticipants || 50,
-            encrypt(videoLink || ''), tags || []]
+            encrypt(videoLink), tags || []]
     );
     return successResponse(res, 201, 'Live session created.', result.rows[0]);
 };
@@ -103,11 +122,12 @@ const updateSession = async (req, res) => {
          tags = COALESCE($7, tags), status = COALESCE($8, status), updated_at = NOW()
          WHERE id = $9
          RETURNING
-           id as "_id", title, description, status, price, tags,
+           id as "_id", title, description, status, tags, thumbnail,
            scheduled_at as "scheduledAt",
            duration_minutes as "duration",
            max_participants as "maxParticipants",
            registered_users as "bookedUsers",
+           is_featured as "isFeatured",
            vendor_id as "vendorId",
            created_at as "createdAt",
            updated_at as "updatedAt"`,
@@ -138,7 +158,7 @@ const getVendorSessions = async (req, res) => {
     const [dataRes, countRes] = await Promise.all([
         query(
             `SELECT
-                id as "_id", title, description, status, price, tags,
+                id as "_id", title, description, status, tags, thumbnail,
                 scheduled_at as "scheduledAt",
                 duration_minutes as "duration",
                 max_participants as "maxParticipants",
