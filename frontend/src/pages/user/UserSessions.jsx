@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { sessionService } from '../../services';
-import { PageLoader, EmptyState, Badge } from '../../components/common/UI';
+import { PageLoader, EmptyState } from '../../components/common/UI';
 import { toast } from 'react-toastify';
 import { Link } from 'react-router-dom';
 
@@ -8,19 +8,18 @@ const UserSessions = () => {
     const [bookings, setBookings] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    const loadBookings = async () => {
-        setLoading(true);
-        try {
-            const { data } = await sessionService.getMyBookings();
-            setBookings(data.data);
-        } catch (err) {
-            toast.error('Failed to load your sessions.');
-        } finally {
-            setLoading(false);
-        }
-    };
-
     useEffect(() => {
+        const loadBookings = async () => {
+            setLoading(true);
+            try {
+                const { data } = await sessionService.getMyBookings();
+                setBookings(data.data);
+            } catch (err) {
+                toast.error('Failed to load your sessions.');
+            } finally {
+                setLoading(false);
+            }
+        };
         loadBookings();
     }, []);
 
