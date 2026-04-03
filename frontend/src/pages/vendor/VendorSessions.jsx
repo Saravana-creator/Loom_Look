@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { sessionService } from '../../services';
-import { Badge, EmptyState, ConfirmModal } from '../../components/common/UI';
+import { EmptyState, ConfirmModal } from '../../components/common/UI';
 import { toast } from 'react-toastify';
 
 const CATEGORIES = [
