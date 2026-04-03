@@ -67,7 +67,10 @@ const getSession = async (req, res) => {
  * POST /api/vendor/sessions
  */
 const createSession = async (req, res) => {
-    const { title, description, scheduledAt, duration, maxParticipants, videoLink, price, tags, thumbnail } = req.body;
+    const { title, description, scheduledAt, duration, maxParticipants, videoLink, price, tags } = req.body;
+
+    if (!title || !scheduledAt) return errorResponse(res, 400, 'Title and scheduled date are required.');
+    if (!videoLink || !videoLink.trim()) return errorResponse(res, 400, 'Meeting link is required.');
 
     const result = await query(
         `INSERT INTO live_sessions (title, description, vendor_id, scheduled_at, duration_minutes, max_participants, meeting_link, tags, is_featured, status)
@@ -88,16 +91,28 @@ const updateSession = async (req, res) => {
     if (existing.rows[0].vendor_id !== req.user.id) return errorResponse(res, 403, 'Not authorized.');
 
     const { title, description, scheduledAt, duration, maxParticipants, videoLink, tags, status } = req.body;
+
+    if (!videoLink || !videoLink.trim()) return errorResponse(res, 400, 'Meeting link is required.');
+
     const result = await query(
         `UPDATE live_sessions SET
          title = COALESCE($1, title), description = COALESCE($2, description),
          scheduled_at = COALESCE($3, scheduled_at), duration_minutes = COALESCE($4, duration_minutes),
          max_participants = COALESCE($5, max_participants),
-         meeting_link = COALESCE($6, meeting_link),
+         meeting_link = CASE WHEN $6::text IS NOT NULL THEN $6 ELSE meeting_link END,
          tags = COALESCE($7, tags), status = COALESCE($8, status), updated_at = NOW()
-         WHERE id = $9 RETURNING id as "_id", *`,
-        [title, description, scheduledAt ? new Date(scheduledAt) : null, duration, maxParticipants,
-            videoLink ? encrypt(videoLink) : null, tags, status, req.params.id]
+         WHERE id = $9
+         RETURNING
+           id as "_id", title, description, status, price, tags,
+           scheduled_at as "scheduledAt",
+           duration_minutes as "duration",
+           max_participants as "maxParticipants",
+           registered_users as "bookedUsers",
+           vendor_id as "vendorId",
+           created_at as "createdAt",
+           updated_at as "updatedAt"`,
+        [title, description, scheduledAt ? new Date(scheduledAt) : null, duration || null, maxParticipants || null,
+            videoLink ? encrypt(videoLink) : null, tags || null, status || null, req.params.id]
     );
     return successResponse(res, 200, 'Session updated.', result.rows[0]);
 };
@@ -118,11 +133,24 @@ const deleteSession = async (req, res) => {
  * GET /api/vendor/sessions
  */
 const getVendorSessions = async (req, res) => {
-    const { page = 1, limit = 10 } = req.query;
+    const { page = 1, limit = 50 } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
     const [dataRes, countRes] = await Promise.all([
-        query('SELECT id as "_id", *, scheduled_at as "scheduledAt", duration_minutes as "duration", max_participants as "maxParticipants", price FROM live_sessions WHERE vendor_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
-            [req.user.id, Number(limit), offset]),
+        query(
+            `SELECT
+                id as "_id", title, description, status, price, tags,
+                scheduled_at as "scheduledAt",
+                duration_minutes as "duration",
+                max_participants as "maxParticipants",
+                registered_users as "bookedUsers",
+                is_featured as "isFeatured",
+                vendor_id as "vendorId",
+                created_at as "createdAt",
+                updated_at as "updatedAt"
+             FROM live_sessions WHERE vendor_id = $1
+             ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+            [req.user.id, Number(limit), offset]
+        ),
         query('SELECT COUNT(*) FROM live_sessions WHERE vendor_id = $1', [req.user.id]),
     ]);
     return paginatedResponse(res, dataRes.rows, Number(page), Number(limit), Number(countRes.rows[0].count));

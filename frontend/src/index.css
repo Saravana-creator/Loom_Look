@@ -1757,8 +1757,35 @@ img {
 }
 
 /* ─────────────────────────────────────────────
-   SELECTION
+   VENDOR SESSIONS RESPONSIVE LAYOUT
 ───────────────────────────────────────────── */
+.vendor-sessions-table {
+  display: block;
+}
+
+.vendor-sessions-cards {
+  display: none;
+  flex-direction: column;
+  gap: 16px;
+}
+
+@media (max-width: 768px) {
+  .vendor-sessions-table {
+    display: none;
+  }
+  .vendor-sessions-cards {
+    display: flex;
+  }
+}
+
+/* Allow modal to be full-width on small screens */
+@media (max-width: 480px) {
+  .modal {
+    border-radius: var(--radius-md) !important;
+    margin: 8px;
+  }
+}
+
 ::selection {
   background: var(--primary-glow);
   color: var(--primary-dark);
