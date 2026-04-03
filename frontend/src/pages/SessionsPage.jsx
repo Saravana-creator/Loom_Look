@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { sessionService } from '../services';
 import { useAuth } from '../context/AuthContext';
 import { PageLoader, EmptyState } from '../components/common/UI';
@@ -8,14 +9,30 @@ const SessionsPage = () => {
     const [sessions, setSessions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [bookingId, setBookingId] = useState(null);
+    const [bookedSessionIds, setBookedSessionIds] = useState(new Set());
+    const navigate = useNavigate();
     const { isAuthenticated, role } = useAuth();
 
     useEffect(() => {
-        sessionService.getSessions().then(({ data }) => {
-            setSessions(data.data);
-            setLoading(false);
-        }).catch(() => setLoading(false));
-    }, []);
+        const load = async () => {
+            setLoading(true);
+            try {
+                const [{ data: sData }, bData] = await Promise.all([
+                    sessionService.getSessions(),
+                    isAuthenticated && role === 'user' ? sessionService.getMyBookings() : Promise.resolve({ data: { data: [] } })
+                ]);
+                setSessions(sData.data);
+                if (bData.data.data) {
+                    setBookedSessionIds(new Set(bData.data.data.map(b => b.sessionId)));
+                }
+            } catch (err) {
+                toast.error('Failed to load sessions.');
+            } finally {
+                setLoading(false);
+            }
+        };
+        load();
+    }, [isAuthenticated, role]);
 
     const handleBook = async (session) => {
         if (!isAuthenticated || role !== 'user') {
@@ -26,8 +43,7 @@ const SessionsPage = () => {
         try {
             await sessionService.bookSession(session._id);
             toast.success('🎉 Session booked successfully!');
-            const { data } = await sessionService.getSessions();
-            setSessions(data.data);
+            setBookedSessionIds(prev => new Set([...prev, session._id]));
         } catch (err) {
             toast.error(err.response?.data?.message || 'Booking failed.');
         } finally {
@@ -88,13 +104,20 @@ const SessionsPage = () => {
                                             <p style={{ fontSize: '0.78rem', color: 'var(--text-light)', marginBottom: 14 }}>🏪 {session.vendor.shopName}</p>
                                         )}
                                         <button
-                                            className="btn btn-primary btn-full btn-sm"
-                                            onClick={() => handleBook(session)}
-                                            disabled={spotsLeft === 0 || bookingId === session._id || session.status === 'completed'}
+                                            className={`btn btn-full btn-sm ${bookedSessionIds.has(session._id) ? 'btn-secondary' : 'btn-primary'}`}
+                                            onClick={() => {
+                                                if (bookedSessionIds.has(session._id)) {
+                                                    navigate('/my-sessions');
+                                                } else {
+                                                    handleBook(session);
+                                                }
+                                            }}
+                                            disabled={(spotsLeft === 0 && !bookedSessionIds.has(session._id)) || bookingId === session._id || session.status === 'completed'}
                                         >
                                             {bookingId === session._id ? '⏳ Booking...' :
-                                                session.status === 'completed' ? 'Completed' :
-                                                    spotsLeft === 0 ? 'Fully Booked' : '🎟️ Book Now'}
+                                                bookedSessionIds.has(session._id) ? '✅ Already Booked' :
+                                                    session.status === 'completed' ? 'Completed' :
+                                                        spotsLeft === 0 ? 'Fully Booked' : '🎟️ Book Now'}
                                         </button>
                                     </div>
                                 </div>

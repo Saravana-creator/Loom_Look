@@ -25,6 +25,8 @@ const VendorRegisterPage = lazy(() => import('./pages/auth/VendorRegisterPage'))
 const CartPage = lazy(() => import('./pages/user/CartPage'));
 const CheckoutPage = lazy(() => import('./pages/user/CheckoutPage'));
 const OrdersPage = lazy(() => import('./pages/user/OrdersPage'));
+const ProfilePage = lazy(() => import('./pages/user/ProfilePage'));
+const UserSessions = lazy(() => import('./pages/user/UserSessions'));
 
 // Vendor
 const VendorLayout = lazy(() => import('./pages/vendor/VendorLayout'));
@@ -85,6 +87,16 @@ function App() {
                             <Route path="/orders" element={
                                 <ProtectedRoute allowedRoles={['user']}>
                                     <AppLayout><OrdersPage /></AppLayout>
+                                </ProtectedRoute>
+                            } />
+                            <Route path="/profile" element={
+                                <ProtectedRoute allowedRoles={['user']}>
+                                    <AppLayout><ProfilePage /></AppLayout>
+                                </ProtectedRoute>
+                            } />
+                            <Route path="/my-sessions" element={
+                                <ProtectedRoute allowedRoles={['user']}>
+                                    <AppLayout><UserSessions /></AppLayout>
                                 </ProtectedRoute>
                             } />
 

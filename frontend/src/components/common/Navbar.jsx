@@ -74,10 +74,15 @@ const Navbar = () => {
 
                     {isAuthenticated ? (
                         <>
+                            {role === 'user' && (
+                                <Link to="/my-sessions" className="btn btn-secondary btn-sm" style={{ marginRight: 8 }}>
+                                    📹 My Sessions
+                                </Link>
+                            )}
                             <Link to={getDashboardLink()} className="btn btn-secondary btn-sm">
                                 {role === 'admin' ? '👑 Admin' : role === 'vendor' ? '🏪 Vendor' : '👤 Profile'}
                             </Link>
-                            <button className="btn btn-primary btn-sm" onClick={handleLogout}>
+                            <button className="btn btn-primary btn-sm" style={{ marginLeft: 8 }} onClick={handleLogout}>
                                 Logout
                             </button>
                         </>

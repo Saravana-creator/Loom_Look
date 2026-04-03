@@ -131,7 +131,7 @@ const initDb = async () => {
         vendor_id UUID REFERENCES vendors(id) ON DELETE CASCADE,
         scheduled_at TIMESTAMP NOT NULL,
         duration_minutes INTEGER DEFAULT 60,
-        status VARCHAR(20) DEFAULT 'Scheduled',
+        status VARCHAR(20) DEFAULT 'upcoming',
         meeting_link TEXT,
         max_participants INTEGER DEFAULT 100,
         registered_users JSONB DEFAULT '[]'::jsonb,
