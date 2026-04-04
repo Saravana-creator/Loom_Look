@@ -66,11 +66,24 @@ const createOrder = async (req, res) => {
     const result = await query(
         `INSERT INTO orders (user_id, order_number, items, shipping_address_encrypted, payment_method, payment_status, order_status, subtotal, shipping_cost, tax, total_amount, payment_info)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
-        [req.user.id, orderNumber, JSON.stringify(orderItems), encrypt(JSON.stringify(shippingAddress)),
-            paymentMethod, PAYMENT_STATUS.PENDING, ORDER_STATUS.PROCESSING,
+        [
+            req.user.id, orderNumber, JSON.stringify(orderItems), encrypt(JSON.stringify(shippingAddress)),
+            paymentMethod,
+            paymentMethod === 'cod' ? PAYMENT_STATUS.PENDING : PAYMENT_STATUS.PENDING,
+            paymentMethod === 'cod' ? ORDER_STATUS.CONFIRMED : ORDER_STATUS.PROCESSING,
             subtotal, shippingCost, tax, total,
-        JSON.stringify({ razorpayOrderId })]
+            JSON.stringify({ razorpayOrderId })
+        ]
     );
+
+    // If COD, deduct stock and clear cart immediately
+    if (paymentMethod === 'cod') {
+        for (const item of orderItems) {
+            await query('UPDATE products SET stock = stock - $1, total_sold = total_sold + $1 WHERE id = $2',
+                [item.quantity, item.productId]);
+        }
+        await query('UPDATE users SET cart = $1 WHERE id = $2', [JSON.stringify([]), req.user.id]);
+    }
 
     return successResponse(res, 201, 'Order created.', {
         order: result.rows[0],
@@ -131,8 +144,13 @@ const getUserOrders = async (req, res) => {
     const { page = 1, limit = 10 } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
     const [dataRes, countRes] = await Promise.all([
-        query('SELECT * FROM orders WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
-            [req.user.id, Number(limit), offset]),
+        query(
+            `SELECT id as "_id", order_number as "orderId", items, total_amount as "totalAmount",
+                    order_status as "status", payment_method as "paymentMethod",
+                    payment_status as "paymentStatus", created_at as "createdAt"
+             FROM orders WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+            [req.user.id, Number(limit), offset]
+        ),
         query('SELECT COUNT(*) FROM orders WHERE user_id = $1', [req.user.id]),
     ]);
     return paginatedResponse(res, dataRes.rows, Number(page), Number(limit), Number(countRes.rows[0].count));
