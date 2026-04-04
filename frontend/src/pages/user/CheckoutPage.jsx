@@ -6,7 +6,7 @@ import { orderService } from '../../services';
 import { toast } from 'react-toastify';
 
 const CheckoutPage = () => {
-    const { items, subtotal, clearCart, fetchCart } = useCart();
+    const { items, subtotal, fetchCart } = useCart();
     const { user } = useAuth();
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
