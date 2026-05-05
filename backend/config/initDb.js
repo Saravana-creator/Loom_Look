@@ -1,4 +1,5 @@
 const { pool } = require('./db');
+const bcrypt = require('bcryptjs');
 
 const initDb = async () => {
     try {
@@ -155,6 +156,35 @@ const initDb = async () => {
     `);
 
         console.log('✅ Tables created successfully.');
+        
+        // ─────────────────────────────────────────────
+        //  SEED ADMIN
+        // ─────────────────────────────────────────────
+        console.log('🌱 Seeding Admin User...');
+        const adminEmail = process.env.ADMIN_EMAIL || 'admin@loomlook.com';
+        const adminPassword = process.env.ADMIN_PASSWORD || 'Admin@LoomLook2026';
+        
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(adminPassword, salt);
+
+        const existingAdmin = await client.query('SELECT id FROM users WHERE email = $1', [adminEmail]);
+        
+        if (existingAdmin.rows.length === 0) {
+            await client.query(
+                `INSERT INTO users (name, email, password, role, is_active, is_suspended) 
+                 VALUES ($1, $2, $3, 'admin', true, false)`,
+                ['Admin User', adminEmail, hashedPassword]
+            );
+            console.log(`✅ Admin user created: ${adminEmail}`);
+        } else {
+            // Update password and ensure role is admin
+            await client.query(
+                `UPDATE users SET password = $1, role = 'admin', is_active = true, is_suspended = false 
+                 WHERE email = $2`,
+                [hashedPassword, adminEmail]
+            );
+            console.log(`✅ Admin user updated: ${adminEmail}`);
+        }
 
         // Create text search config/indexes if necessary
         // await client.query(`CREATE INDEX IF NOT EXISTS product_search_idx ON products USING GIN (to_tsvector('english', name || ' ' || description || ' ' || array_to_string(tags, ' ')));`);
