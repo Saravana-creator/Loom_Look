@@ -156,6 +156,7 @@ const initDb = async () => {
     `);
 
         console.log('✅ Tables created successfully.');
+        console.log('--- STARTING ADMIN SEEDING ---');
         
         // ─────────────────────────────────────────────
         //  SEED ADMIN
@@ -176,7 +177,7 @@ const initDb = async () => {
                  VALUES ($1, $2, $3, 'admin', true, false)`,
                 ['Admin User', adminEmail, hashedPassword]
             );
-            console.log(`✅ Admin user created: ${adminEmail}`);
+            console.log(`✅ [SEED] Admin user created: ${adminEmail} with password length: ${adminPassword.length}`);
         } else {
             // Update password and ensure role is admin
             await client.query(
@@ -184,7 +185,7 @@ const initDb = async () => {
                  WHERE email = $2`,
                 [hashedPassword, adminEmail]
             );
-            console.log(`✅ Admin user updated: ${adminEmail}`);
+            console.log(`✅ [SEED] Admin user updated: ${adminEmail} with password length: ${adminPassword.length}`);
         }
 
         // Create text search config/indexes if necessary

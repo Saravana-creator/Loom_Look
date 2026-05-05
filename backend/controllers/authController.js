@@ -162,6 +162,8 @@ const loginAdmin = async (req, res) => {
     const isMatch = await bcrypt.compare(password, admin.password);
     if (!isMatch) {
         console.log(`[DEBUG] Admin password mismatch for: ${email}`);
+        console.log(`[DEBUG] Provided password length: ${password.length}`);
+        console.log(`[DEBUG] DB Hash length: ${admin.password.length}`);
         return errorResponse(res, 401, 'Invalid admin credentials.');
     }
 
