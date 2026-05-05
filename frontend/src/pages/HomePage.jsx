@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { productService, sessionService } from '../services';
+import { productService } from '../services';
 import ProductCard from '../components/common/ProductCard';
 import { PageLoader } from '../components/common/UI';
 
@@ -11,18 +11,13 @@ const CATEGORIES = [
 
 const HomePage = () => {
     const [featuredProducts, setFeaturedProducts] = useState([]);
-    const [sessions, setSessions] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const load = async () => {
             try {
-                const [prodRes, sesRes] = await Promise.all([
-                    productService.getProducts({ limit: 8, sort: '-totalSold' }),
-                    sessionService.getSessions({ limit: 3 }),
-                ]);
+                const prodRes = await productService.getProducts({ limit: 8, sort: '-totalSold' });
                 setFeaturedProducts(prodRes.data.data);
-                setSessions(sesRes.data.data);
             } catch (err) {
                 console.error(err);
             } finally {
@@ -104,7 +99,7 @@ const HomePage = () => {
                     
                     <div className="staggered-grid">
                         {featuredProducts.map((product, idx) => (
-                            <div key={product._id} className={`stagger-item ${idx % 2 === 0 ? 'even' : 'odd'}`}>
+                            <div key={product.id} className={`stagger-item ${idx % 2 === 0 ? 'even' : 'odd'}`}>
                                 <ProductCard product={product} />
                             </div>
                         ))}

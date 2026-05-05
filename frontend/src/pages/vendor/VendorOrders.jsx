@@ -55,7 +55,7 @@ const VendorOrders = () => {
                         {orders.map((o) => {
                             const paymentInfo = o.payment_info ? (typeof o.payment_info === 'string' ? JSON.parse(o.payment_info) : o.payment_info) : {};
                             return (
-                                <div key={o._id} className="ledger-row">
+                                <div key={o.id} className="ledger-row">
                                     <div className="ledger-col-main">
                                         <span className="order-id">#{o.order_number || o.orderId}</span>
                                         <span className="order-date">{new Date(o.created_at || o.createdAt).toLocaleDateString()}</span>

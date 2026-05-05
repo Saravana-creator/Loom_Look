@@ -63,7 +63,7 @@ const VendorProducts = () => {
                 images: imageUrls.filter(Boolean).map((url) => ({ url, altText: form.name })),
             };
             if (editProduct) {
-                await productService.updateProduct(editProduct._id, payload);
+                await productService.updateProduct(editProduct.id, payload);
                 toast.success('Product updated!');
             } else {
                 await productService.createProduct(payload);
@@ -99,7 +99,7 @@ const VendorProducts = () => {
             {loading ? (
                 <div className="page-loader"><div className="spinner" /></div>
             ) : products.length === 0 ? (
-                <EmptyState icon="🧵" title="No products yet" message="Add your first handmade product!" action={<button className="btn btn-primary" onClick={openNew}>Add Product</button>} />
+                <EmptyState icon={<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>} title="No products yet" message="Add your first handmade product!" action={<button className="btn btn-primary" onClick={openNew}>Add Product</button>} />
             ) : (
                 <div className="table-wrapper">
                     <table className="table">
@@ -110,7 +110,7 @@ const VendorProducts = () => {
                         </thead>
                         <tbody>
                             {products.map((p) => (
-                                <tr key={p._id}>
+                                <tr key={p.id}>
                                     <td>
                                         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                                             <img src={p.images?.[0]?.url} alt="" style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
@@ -127,7 +127,7 @@ const VendorProducts = () => {
                                     <td>
                                         <div style={{ display: 'flex', gap: 6 }}>
                                             <button className="btn btn-secondary btn-sm" onClick={() => openEdit(p)}>Edit</button>
-                                            <button className="btn btn-danger btn-sm" onClick={() => setConfirm({ open: true, id: p._id })}>Delete</button>
+                                            <button className="btn btn-danger btn-sm" onClick={() => setConfirm({ open: true, id: p.id })}>Delete</button>
                                         </div>
                                     </td>
                                 </tr>
