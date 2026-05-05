@@ -93,7 +93,7 @@ const VendorDashboard = () => {
                     </div>
                     <div className="recent-list">
                         {recentOrders.map((o) => (
-                            <div key={o._id} className="recent-order-item">
+                            <div key={o.id} className="recent-order-item">
                                 <div className="order-meta">
                                     <span className="order-id">#{o.order_number || o.orderId}</span>
                                     <span className="order-customer">{o.customer_name || 'Anonymous Collector'}</span>
@@ -116,7 +116,7 @@ const VendorDashboard = () => {
                     </div>
                     <div className="recent-products-collage">
                         {products.map((p, idx) => (
-                            <div key={p._id} className={`collage-piece piece-${idx}`}>
+                            <div key={p.id} className={`collage-piece piece-${idx}`}>
                                 <img src={p.images?.[0]?.url} alt={p.name} />
                                 <div className="piece-overlay">
                                     <span>{p.name}</span>

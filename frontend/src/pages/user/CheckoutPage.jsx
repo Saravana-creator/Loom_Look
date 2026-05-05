@@ -47,7 +47,7 @@ const CheckoutPage = () => {
                             state: state || '',
                             pincode: postcode || prev.pincode
                         }));
-                        toast.success('📍 Location Refined');
+                        toast.success('Location Refined');
                     }
                 } catch (err) {
                     toast.error('Could not auto-fill address.');
@@ -77,7 +77,7 @@ const CheckoutPage = () => {
         setLoading(true);
         try {
             const orderItems = items.map((item) => ({
-                productId: item.product._id,
+                productId: item.product.id,
                 quantity: item.quantity,
             }));
 
@@ -91,7 +91,7 @@ const CheckoutPage = () => {
 
             if (paymentMethod === 'cod') {
                 await fetchCart();
-                toast.success('🎉 Heritage piece reserved! Pay on arrival.');
+                toast.success('Heritage piece reserved! Pay on arrival.');
                 navigate(`/orders`);
                 return;
             }
@@ -110,13 +110,13 @@ const CheckoutPage = () => {
                 handler: async (response) => {
                     try {
                         await orderService.verifyPayment({
-                            orderId: order._id,
+                            orderId: order.id,
                             razorpayOrderId: response.razorpay_order_id,
                             razorpayPaymentId: response.razorpay_payment_id,
                             razorpaySignature: response.razorpay_signature,
                         });
                         await fetchCart();
-                        toast.success('✨ Payment Secured. Weaving your order.');
+                        toast.success('Payment Secured. Weaving your order.');
                         navigate(`/orders`);
                     } catch {
                         toast.error('Verification failed. Assistance required.');
@@ -145,7 +145,7 @@ const CheckoutPage = () => {
                         <h2 className="summary-title">The <span className="italic">Artisan's</span> Invoice</h2>
                         <div className="summary-items-list">
                             {items.map((item) => (
-                                <div key={item.product?._id} className="summary-item-card">
+                                <div key={item.product?.id} className="summary-item-card">
                                     <div className="item-visual">
                                         <img src={item.product?.images?.[0]?.url} alt="" />
                                     </div>

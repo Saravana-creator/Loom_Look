@@ -130,7 +130,6 @@ function App() {
                             <Route path="*" element={
                                 <AppLayout>
                                     <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
-                                        <div style={{ fontSize: '5rem' }}>🧵</div>
                                         <h2 style={{ fontFamily: 'Playfair Display, serif' }}>Page Not Found</h2>
                                         <p style={{ color: 'var(--text-light)' }}>The thread you're following leads nowhere...</p>
                                         <a href="/" className="btn btn-primary">← Return Home</a>

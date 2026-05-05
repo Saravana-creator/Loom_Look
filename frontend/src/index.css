@@ -4,35 +4,36 @@
    ROYAL WEAVE DESIGN SYSTEM — Loom Look (v3.0)
 ───────────────────────────────────────────── */
 :root {
-  /* The "Heritage" Palette */
-  --emerald: #064E3B;        /* Deep Royal Emerald */
-  --emerald-light: #065F46;
-  --emerald-glow: rgba(6, 78, 59, 0.1);
+  /* The "Heritage" Palette — Refined v4.0 */
+  --emerald: #022C22;        /* Midnight Emerald */
+  --emerald-light: #064E3B;
+  --emerald-glow: rgba(2, 44, 34, 0.08);
 
-  --crimson: #9D174D;        /* Rich Saree Border Crimson */
-  --crimson-light: #BE185D;
+  --crimson: #701A41;        /* Royal Velvet Crimson */
+  --crimson-light: #9D174D;
   
-  --gold-silk: #FDE68A;      /* Soft Metallic Gold */
-  --gold-muted: #D97706;
+  --gold-silk: #A68A56;      /* Aged Antique Gold */
+  --gold-muted: #846D43;
+  --gold-silk-light: #C5A46D;
 
   /* Artistic Neutrals */
-  --bg-parchment: #FFFCF5;   /* Warm Handmade Paper */
-  --bg-silk: #FAF7F2;        /* Natural Silk Tone */
-  --text-onyx: #0F172A;      /* Near Black */
-  --text-moss: #374151;      /* Muted Green-Grey */
+  --bg-parchment: #FAF9F6;   /* Refined Gallery Off-White */
+  --bg-silk: #F3F1ED;        /* Natural Silk Tone */
+  --text-onyx: #1A1A1A;      /* Softer Near Black */
+  --text-moss: #4A4A4A;      /* Deeper Grey */
 
   /* Unique Layout Tokens */
   --radius-organic: 40% 60% 70% 30% / 40% 50% 60% 50%;
-  --radius-gallery: 2px;     /* Sharp, gallery edges */
+  --radius-gallery: 0px;     /* Sharp, high-end gallery edges */
   
   /* Bold Typography Scales */
   --font-main: 'Outfit', sans-serif;
   --font-display: 'Fraunces', serif;
 
-  --shadow-art: 20px 20px 0px rgba(6, 78, 59, 0.05);
-  --shadow-bold: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+  --shadow-art: 30px 30px 0px rgba(2, 44, 34, 0.03);
+  --shadow-bold: 0 30px 60px -15px rgba(0, 0, 0, 0.2);
   
-  --transition-bespoke: 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-bespoke: 1.2s cubic-bezier(0.19, 1, 0.22, 1);
 }
 
 /* ─────────────────────────────────────────────

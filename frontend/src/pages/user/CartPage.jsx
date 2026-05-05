@@ -28,7 +28,7 @@ const CartPage = () => {
             <div className="page-content">
                 {items.length === 0 ? (
                     <EmptyState
-                        icon="🛒"
+                        icon={<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>}
                         title="Your cart is empty"
                         message="Discover beautiful handmade sarees and crafts."
                         action={<Link to="/shop" className="btn btn-primary">Start Shopping</Link>}
@@ -41,7 +41,7 @@ const CartPage = () => {
                             {items.map((item) => {
                                 const price = item.product?.discountPrice > 0 ? item.product.discountPrice : item.product?.price;
                                 return (
-                                    <div key={item.product?._id} className="cart-item">
+                                    <div key={item.product?.id} className="cart-item">
                                         <div className="cart-item__img">
                                             <img
                                                 src={item.product?.images?.[0]?.url || 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=200'}
@@ -55,9 +55,9 @@ const CartPage = () => {
                                             </p>
                                             <p className="cart-item__price">₹{price?.toLocaleString('en-IN')}</p>
                                             <div className="qty-control">
-                                                <button className="qty-btn" onClick={() => updateItem(item.product._id, item.quantity - 1)} disabled={item.quantity <= 1}>−</button>
+                                                <button className="qty-btn" onClick={() => updateItem(item.product.id, item.quantity - 1)} disabled={item.quantity <= 1}>−</button>
                                                 <span className="qty-value">{item.quantity}</span>
-                                                <button className="qty-btn" onClick={() => updateItem(item.product._id, item.quantity + 1)} disabled={item.quantity >= item.product.stock}>+</button>
+                                                <button className="qty-btn" onClick={() => updateItem(item.product.id, item.quantity + 1)} disabled={item.quantity >= item.product.stock}>+</button>
                                             </div>
                                         </div>
                                         <div style={{ textAlign: 'right' }}>
@@ -66,7 +66,7 @@ const CartPage = () => {
                                             </p>
                                             <button
                                                 className="btn btn-danger btn-sm"
-                                                onClick={() => removeItem(item.product._id)}
+                                                onClick={() => removeItem(item.product.id)}
                                             >
                                                 Remove
                                             </button>
@@ -95,8 +95,8 @@ const CartPage = () => {
                                     <span>₹{tax.toLocaleString('en-IN')}</span>
                                 </div>
                                 {shippingCharge === 0 && (
-                                    <p style={{ fontSize: '0.78rem', color: '#16a34a', margin: '4px 0 8px' }}>
-                                        🎉 You saved ₹80 on shipping!
+                                    <p style={{ fontSize: '0.78rem', color: 'var(--emerald)', margin: '4px 0 8px' }}>
+                                        You saved ₹80 on shipping!
                                     </p>
                                 )}
                                 {subtotal < 1000 && (
@@ -113,7 +113,8 @@ const CartPage = () => {
                                     style={{ marginTop: 20 }}
                                     onClick={() => navigate('/checkout')}
                                 >
-                                    Proceed to Checkout →
+                                    Proceed to Checkout
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                                 </button>
                                 <Link to="/shop" className="btn btn-secondary btn-full" style={{ marginTop: 10, fontSize: '0.85rem' }}>
                                     Continue Shopping

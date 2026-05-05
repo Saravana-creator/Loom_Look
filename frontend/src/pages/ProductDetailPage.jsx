@@ -40,7 +40,7 @@ const ProductDetailPage = () => {
             return;
         }
         setAddingToCart(true);
-        await addToCart(product._id, quantity);
+        await addToCart(product.id, quantity);
         setAddingToCart(false);
     };
 
@@ -125,10 +125,12 @@ const ProductDetailPage = () => {
                         <h1 style={{ fontSize: '1.8rem', marginBottom: 16 }}>{product.name}</h1>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-                            <span style={{ color: 'var(--gold)', fontSize: '1.1rem' }}>
-                                {'⭐'.repeat(Math.round(product.ratings?.average || 0))}
-                            </span>
-                            <span style={{ fontSize: '0.85rem', color: 'var(--text-light)' }}>
+                            <div className="rating-stars">
+                                {[...Array(5)].map((_, i) => (
+                                    <svg key={i} width="16" height="16" viewBox="0 0 24 24" fill={i < Math.round(product.ratings?.average || 0) ? "var(--gold-silk)" : "none"} stroke="var(--gold-silk)" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                                ))}
+                            </div>
+                            <span style={{ fontSize: '0.85rem', color: 'var(--text-moss)' }}>
                                 {product.ratings?.average?.toFixed(1) || 'No'} rating ({product.ratings?.count || 0} reviews)
                             </span>
                         </div>
@@ -161,8 +163,18 @@ const ProductDetailPage = () => {
                         )}
 
                         {/* Stock */}
-                        <p style={{ fontSize: '0.88rem', marginBottom: 20, color: product.stock > 0 ? '#16a34a' : '#dc2626' }}>
-                            {product.stock > 0 ? `✅ ${product.stock} in stock` : '❌ Out of stock'}
+                        <p style={{ fontSize: '0.88rem', marginBottom: 20, color: product.stock > 0 ? 'var(--emerald)' : 'var(--crimson)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {product.stock > 0 ? (
+                                <>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                    {product.stock} in stock
+                                </>
+                            ) : (
+                                <>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                                    Out of stock
+                                </>
+                            )}
                         </p>
 
                         {/* Quantity */}
@@ -184,7 +196,12 @@ const ProductDetailPage = () => {
                                 onClick={handleAddToCart}
                                 disabled={product.stock === 0 || addingToCart}
                             >
-                                {addingToCart ? '⏳ Adding...' : '🛒 Add to Cart'}
+                                {addingToCart ? 'PROCESSING...' : (
+                                    <>
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+                                        ADD TO CART
+                                    </>
+                                )}
                             </button>
                             <button
                                 className="btn btn-gold"
@@ -192,13 +209,16 @@ const ProductDetailPage = () => {
                                 onClick={handleBuyNow}
                                 disabled={product.stock === 0}
                             >
-                                ⚡ Buy Now
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                                BUY NOW
                             </button>
                         </div>
 
                         {product.vendor && (
                             <div style={{ marginTop: 24, padding: 16, background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', display: 'flex', gap: 12, alignItems: 'center' }}>
-                                <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--primary-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>🏪</div>
+                                <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--emerald-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', color: 'var(--emerald)' }}>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                                </div>
                                 <div>
                                     <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>{product.vendor.shopName}</p>
                                     <p style={{ fontSize: '0.78rem', color: 'var(--text-light)' }}>Verified Artisan Vendor</p>
@@ -220,9 +240,11 @@ const ProductDetailPage = () => {
                                 {[1, 2, 3, 4, 5].map((star) => (
                                     <span
                                         key={star}
-                                        style={{ fontSize: '1.4rem', cursor: 'pointer', opacity: review.rating >= star ? 1 : 0.3 }}
+                                        style={{ cursor: 'pointer', opacity: review.rating >= star ? 1 : 0.3 }}
                                         onClick={() => setReview((r) => ({ ...r, rating: star }))}
-                                    >⭐</span>
+                                    >
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill={review.rating >= star ? "var(--gold-silk)" : "none"} stroke="var(--gold-silk)" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                                    </span>
                                 ))}
                             </div>
                             <textarea
@@ -254,8 +276,10 @@ const ProductDetailPage = () => {
                                             {new Date(r.createdAt).toLocaleDateString('en-IN')}
                                         </span>
                                     </div>
-                                    <div style={{ marginBottom: 8 }}>
-                                        {'⭐'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}
+                                    <div style={{ marginBottom: 8, display: 'flex', gap: 2 }}>
+                                        {[...Array(5)].map((_, i) => (
+                                            <svg key={i} width="12" height="12" viewBox="0 0 24 24" fill={i < r.rating ? "var(--gold-silk)" : "none"} stroke="var(--gold-silk)" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                                        ))}
                                     </div>
                                     <p style={{ fontSize: '0.9rem' }}>{r.comment}</p>
                                 </div>

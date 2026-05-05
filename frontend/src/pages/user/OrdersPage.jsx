@@ -45,11 +45,11 @@ const OrdersPage = () => {
                 ) : (
                     <div className="journal-grid">
                         {orders.map((order, idx) => (
-                            <div key={order._id} className="journal-entry animate-slide-up">
+                            <div key={order.id} className="journal-entry animate-slide-up">
                                 <div className="entry-meta">
                                     <span className="entry-num">#{orders.length - idx}</span>
                                     <div className="entry-info">
-                                        <h3>ID: {order.orderId}</h3>
+                                        <h3>ID: {order.id}</h3>
                                         <p>{new Date(order.createdAt).toLocaleDateString('en-IN', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
                                     </div>
                                     <div className={`entry-status status-${order.status.toLowerCase()}`}>
@@ -75,7 +75,7 @@ const OrdersPage = () => {
                                     </div>
                                     <div className="entry-actions">
                                         <button 
-                                            onClick={() => handleDownload(order._id)} 
+                                            onClick={() => handleDownload(order.id)} 
                                             className="btn-journal-action"
                                         >
                                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>

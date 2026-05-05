@@ -21,7 +21,7 @@ export const PageLoader = ({ message = 'Loading...' }) => (
     </div>
 );
 
-export const EmptyState = ({ icon = '📭', title = 'Nothing here', message = '', action }) => (
+export const EmptyState = ({ icon = <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>, title = 'Nothing here', message = '', action }) => (
     <div className="empty-state">
         <div className="empty-state__icon">{icon}</div>
         <h3>{title}</h3>
