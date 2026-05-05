@@ -163,8 +163,9 @@ const initDb = async () => {
         // ─────────────────────────────────────────────
         console.log('🌱 Seeding Admin User...');
         let adminEmail = process.env.ADMIN_EMAIL || 'admin@loomlook.com';
-        adminEmail = adminEmail.toLowerCase(); // Ensure lowercase for case-sensitive DB lookup
-        const adminPassword = process.env.ADMIN_PASSWORD || 'Admin@LoomLook2026';
+        adminEmail = adminEmail.toLowerCase().trim(); // Ensure lowercase and trimmed
+        let adminPassword = process.env.ADMIN_PASSWORD || 'Admin@LoomLook2026';
+        adminPassword = adminPassword.trim(); // Prevent whitespace issues from .env
         
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(adminPassword, salt);

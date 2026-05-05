@@ -146,7 +146,8 @@ const loginVendor = async (req, res) => {
  */
 const loginAdmin = async (req, res) => {
     let { email, password } = req.body;
-    email = email.toLowerCase(); // Case-insensitive lookup
+    email = email.toLowerCase().trim(); // Case-insensitive and trimmed
+    password = password.trim(); // Prevent whitespace issues
     console.log(`[DEBUG] Admin Login Attempt: ${email}`);
 
     const result = await query('SELECT * FROM users WHERE email = $1 AND role = $2', [email, ROLES.ADMIN]);
