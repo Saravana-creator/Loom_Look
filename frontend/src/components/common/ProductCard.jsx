@@ -9,12 +9,12 @@ const ProductCard = memo(({ product }) => {
     const { isAuthenticated, role } = useAuth();
 
     const discountPercent =
-        product.discountPrice > 0
-            ? Math.round(((product.price - product.discountPrice) / product.price) * 100)
+        product.discount_price > 0
+            ? Math.round(((product.price - product.discount_price) / product.price) * 100)
             : 0;
 
     const displayPrice =
-        product.discountPrice > 0 ? product.discountPrice : product.price;
+        product.discount_price > 0 ? product.discount_price : product.price;
 
     const handleAddToCart = async (e) => {
         e.preventDefault();
@@ -70,10 +70,10 @@ const ProductCard = memo(({ product }) => {
                     <div className="product-card__rating">
                         <div className="rating-stars">
                             {[...Array(5)].map((_, i) => (
-                                <svg key={i} width="12" height="12" viewBox="0 0 24 24" fill={i < Math.round(product.ratings?.average || 0) ? "var(--gold-silk)" : "none"} stroke="var(--gold-silk)" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                                <svg key={i} width="12" height="12" viewBox="0 0 24 24" fill={i < Math.round(product.ratings_average || 0) ? "var(--gold-silk)" : "none"} stroke="var(--gold-silk)" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
                             ))}
                         </div>
-                        <span>({product.ratings?.count || 0})</span>
+                        <span>({product.ratings_count || 0})</span>
                     </div>
 
                     <div className="product-card__price-row">
@@ -90,10 +90,10 @@ const ProductCard = memo(({ product }) => {
                         )}
                     </div>
 
-                    {product.vendor?.shopName && (
+                    {product.shop_name && (
                         <p style={{ fontSize: '0.78rem', color: 'var(--text-moss)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-                            {product.vendor.shopName}
+                            {product.shop_name}
                         </p>
                     )}
 

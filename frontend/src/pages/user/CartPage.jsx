@@ -39,7 +39,7 @@ const CartPage = () => {
                         <div>
                             <h3 style={{ marginBottom: 20 }}>Cart Items</h3>
                             {items.map((item) => {
-                                const price = item.product?.discountPrice > 0 ? item.product.discountPrice : item.product?.price;
+                                const price = item.product?.discount_price > 0 ? item.product.discount_price : item.product?.price;
                                 return (
                                     <div key={item.product?.id} className="cart-item">
                                         <div className="cart-item__img">
@@ -50,8 +50,8 @@ const CartPage = () => {
                                         </div>
                                         <div className="cart-item__info">
                                             <h4 className="cart-item__name">{item.product?.name}</h4>
-                                            <p style={{ fontSize: '0.8rem', color: 'var(--text-light)', marginBottom: 4 }}>
-                                                {item.product?.vendor?.shopName}
+                                            <p style={{ fontSize: '0.8rem', color: 'var(--text-moss)', marginBottom: 4 }}>
+                                                {item.product?.shop_name}
                                             </p>
                                             <p className="cart-item__price">₹{price?.toLocaleString('en-IN')}</p>
                                             <div className="qty-control">

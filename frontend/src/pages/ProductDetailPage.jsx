@@ -71,9 +71,9 @@ const ProductDetailPage = () => {
     if (loading) return <PageLoader />;
     if (!product) return null;
 
-    const displayPrice = product.discountPrice > 0 ? product.discountPrice : product.price;
-    const discountPercent = product.discountPrice > 0
-        ? Math.round(((product.price - product.discountPrice) / product.price) * 100)
+    const displayPrice = product.discount_price > 0 ? product.discount_price : product.price;
+    const discountPercent = product.discount_price > 0
+        ? Math.round(((product.price - product.discount_price) / product.price) * 100)
         : 0;
 
     return (
@@ -127,11 +127,11 @@ const ProductDetailPage = () => {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
                             <div className="rating-stars">
                                 {[...Array(5)].map((_, i) => (
-                                    <svg key={i} width="16" height="16" viewBox="0 0 24 24" fill={i < Math.round(product.ratings?.average || 0) ? "var(--gold-silk)" : "none"} stroke="var(--gold-silk)" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                                    <svg key={i} width="16" height="16" viewBox="0 0 24 24" fill={i < Math.round(product.ratings_average || 0) ? "var(--gold-silk)" : "none"} stroke="var(--gold-silk)" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
                                 ))}
                             </div>
                             <span style={{ fontSize: '0.85rem', color: 'var(--text-moss)' }}>
-                                {product.ratings?.average?.toFixed(1) || 'No'} rating ({product.ratings?.count || 0} reviews)
+                                {product.ratings_average ? Number(product.ratings_average).toFixed(1) : 'No'} rating ({product.ratings_count || 0} reviews)
                             </span>
                         </div>
 
@@ -139,9 +139,9 @@ const ProductDetailPage = () => {
                             <span style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--primary)', fontFamily: 'Playfair Display, serif' }}>
                                 ₹{displayPrice.toLocaleString('en-IN')}
                             </span>
-                            {discountPercent > 0 && (
+                            {product.discount_price > 0 && (
                                 <>
-                                    <span style={{ fontSize: '1.1rem', color: 'var(--text-light)', textDecoration: 'line-through' }}>
+                                    <span style={{ fontSize: '1.1rem', color: 'var(--text-moss)', textDecoration: 'line-through' }}>
                                         ₹{product.price.toLocaleString('en-IN')}
                                     </span>
                                     <Badge status={`${discountPercent}% off`} />
@@ -152,13 +152,13 @@ const ProductDetailPage = () => {
                         <p style={{ lineHeight: 1.8, marginBottom: 24, color: 'var(--text-secondary)' }}>{product.description}</p>
 
                         {/* Details */}
-                        {(product.material || product.handmadeDetails) && (
+                        {(product.material || product.handmade_details) && (
                             <div style={{ background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', padding: 16, marginBottom: 24 }}>
                                 <h4 style={{ marginBottom: 12, fontSize: '0.9rem' }}>Product Details</h4>
                                 {product.material && <p style={{ fontSize: '0.88rem', marginBottom: 6 }}><b>Material:</b> {product.material}</p>}
-                                {product.handmadeDetails?.craftType && <p style={{ fontSize: '0.88rem', marginBottom: 6 }}><b>Craft:</b> {product.handmadeDetails.craftType}</p>}
-                                {product.handmadeDetails?.region && <p style={{ fontSize: '0.88rem', marginBottom: 6 }}><b>Region:</b> {product.handmadeDetails.region}</p>}
-                                {product.handmadeDetails?.artisan && <p style={{ fontSize: '0.88rem' }}><b>Artisan:</b> {product.handmadeDetails.artisan}</p>}
+                                {product.handmade_details?.craftType && <p style={{ fontSize: '0.88rem', marginBottom: 6 }}><b>Craft:</b> {product.handmade_details.craftType}</p>}
+                                {product.handmade_details?.region && <p style={{ fontSize: '0.88rem', marginBottom: 6 }}><b>Region:</b> {product.handmade_details.region}</p>}
+                                {product.handmade_details?.artisan && <p style={{ fontSize: '0.88rem' }}><b>Artisan:</b> {product.handmade_details.artisan}</p>}
                             </div>
                         )}
 

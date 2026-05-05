@@ -154,7 +154,7 @@ const CheckoutPage = () => {
                                         <p>Qty: {item.quantity}</p>
                                     </div>
                                     <div className="item-price">
-                                        ₹{( (item.product?.discountPrice || item.product?.price) * item.quantity).toLocaleString('en-IN')}
+                                        ₹{( (item.product?.discount_price > 0 ? item.product.discount_price : item.product?.price) * item.quantity).toLocaleString('en-IN')}
                                     </div>
                                 </div>
                             ))}
