@@ -145,16 +145,27 @@ const loginVendor = async (req, res) => {
  * POST /api/auth/admin/login
  */
 const loginAdmin = async (req, res) => {
-    const { email, password } = req.body;
+    let { email, password } = req.body;
+    email = email.toLowerCase(); // Case-insensitive lookup
+    console.log(`[DEBUG] Admin Login Attempt: ${email}`);
 
     const result = await query('SELECT * FROM users WHERE email = $1 AND role = $2', [email, ROLES.ADMIN]);
     const admin = result.rows[0];
-    if (!admin) return errorResponse(res, 401, 'Invalid admin credentials.');
+    
+    if (!admin) {
+        console.log(`[DEBUG] Admin user not found in DB with email: ${email} and role: ${ROLES.ADMIN}`);
+        return errorResponse(res, 401, 'Invalid admin credentials.');
+    }
+    
     if (admin.is_suspended) return errorResponse(res, 403, 'Admin account is suspended.');
 
     const isMatch = await bcrypt.compare(password, admin.password);
-    if (!isMatch) return errorResponse(res, 401, 'Invalid admin credentials.');
+    if (!isMatch) {
+        console.log(`[DEBUG] Admin password mismatch for: ${email}`);
+        return errorResponse(res, 401, 'Invalid admin credentials.');
+    }
 
+    console.log(`[DEBUG] Admin login successful: ${email}`);
     const payload = { id: admin.id, role: ROLES.ADMIN, email: admin.email };
     const refreshToken = generateRefreshToken(payload);
 
