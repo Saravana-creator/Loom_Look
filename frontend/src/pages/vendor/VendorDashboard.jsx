@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { productService, orderService } from '../../services';
-import { PageLoader, Badge } from '../../components/common/UI';
+import { PageLoader } from '../../components/common/UI';
 
 const VendorDashboard = () => {
     const [stats, setStats] = useState(null);
@@ -13,19 +13,26 @@ const VendorDashboard = () => {
         const load = async () => {
             try {
                 const [prodRes, ordRes] = await Promise.all([
-                    productService.getMyProducts({ limit: 5 }),
-                    orderService.getVendorOrders({ limit: 5 }),
+                    productService.getMyProducts({ limit: 4 }),
+                    orderService.getVendorOrders({ limit: 4 }),
                 ]);
                 setProducts(prodRes.data.data);
                 setRecentOrders(ordRes.data.data);
-                // Calculate stats from products
-                const totalRevenue = ordRes.data.data.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
-                const inStock = prodRes.data.data.filter((p) => p.stock > 0).length;
+                
+                // Detailed calculation for payment transparency
+                const settledEarnings = ordRes.data.data
+                    .filter(o => o.payment_status?.toLowerCase() === 'paid')
+                    .reduce((sum, o) => sum + (o.total_amount || 0), 0);
+                    
+                const pendingAcquisitions = ordRes.data.data
+                    .filter(o => o.payment_status?.toLowerCase() !== 'paid')
+                    .reduce((sum, o) => sum + (o.total_amount || 0), 0);
+
                 setStats({
                     productCount: prodRes.data.pagination?.totalItems || prodRes.data.data.length,
                     orderCount: ordRes.data.pagination?.totalItems || ordRes.data.data.length,
-                    revenue: totalRevenue,
-                    inStock,
+                    settled: settledEarnings,
+                    pending: pendingAcquisitions,
                 });
             } catch (err) {
                 console.error(err);
@@ -39,72 +46,84 @@ const VendorDashboard = () => {
     if (loading) return <PageLoader />;
 
     return (
-        <div>
-            <div className="dashboard-header">
-                <h1 className="dashboard-title">Vendor Dashboard</h1>
-                <Link to="/vendor/products/new" className="btn btn-primary btn-sm">+ Add Product</Link>
+        <div className="atelier-container">
+            <div className="atelier-header animate-fade-in">
+                <div className="header-text">
+                    <span className="visual-label">Commercial Overview</span>
+                    <h1 className="canvas-title">The <span className="italic">Artisan's</span> Atelier</h1>
+                </div>
+                <Link to="/vendor/products/new" className="btn btn-primary">
+                    <span>LAUNCH NEW MASTERPIECE</span>
+                </Link>
             </div>
 
-            {/* Stats */}
-            <div className="stats-grid">
-                {[
-                    { icon: '🧵', label: 'Total Products', value: stats?.productCount || 0, color: 'orange' },
-                    { icon: '📦', label: 'Total Orders', value: stats?.orderCount || 0, color: 'blue' },
-                    { icon: '💰', label: 'Revenue (recent)', value: `₹${(stats?.revenue || 0).toLocaleString('en-IN')}`, color: 'green' },
-                    { icon: '✅', label: 'In Stock', value: stats?.inStock || 0, color: 'gold' },
-                ].map(({ icon, label, value, color }) => (
-                    <div key={label} className="stat-card">
-                        <div className={`stat-icon ${color}`}>{icon}</div>
-                        <div className="stat-info">
-                            <div className="stat-value">{value}</div>
-                            <div className="stat-label">{label}</div>
+            {/* Cinematic Stats */}
+            <div className="atelier-stats-grid animate-slide-up">
+                <div className="atelier-stat-main">
+                    <span className="stat-tag">Commercial Pulse</span>
+                    <div className="stat-split">
+                        <div className="stat-block">
+                            <span className="stat-label">SETTLED EARNINGS</span>
+                            <span className="stat-value">₹{stats?.settled?.toLocaleString('en-IN')}</span>
+                        </div>
+                        <div className="stat-block">
+                            <span className="stat-label">PENDING ACQUISITIONS</span>
+                            <span className="stat-value opacity-50">₹{stats?.pending?.toLocaleString('en-IN')}</span>
                         </div>
                     </div>
-                ))}
+                </div>
+                <div className="atelier-stat-side">
+                    <div className="stat-mini">
+                        <span className="stat-label">TOTAL PIECES</span>
+                        <span className="stat-value">{stats?.productCount}</span>
+                    </div>
+                    <div className="stat-mini">
+                        <span className="stat-label">ACTIVE ORDERS</span>
+                        <span className="stat-value">{stats?.orderCount}</span>
+                    </div>
+                </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-                {/* Recent Products */}
-                <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-light)', overflow: 'hidden' }}>
-                    <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <h3 style={{ fontSize: '1rem' }}>Recent Products</h3>
-                        <Link to="/vendor/products" style={{ fontSize: '0.82rem', color: 'var(--primary)' }}>View All</Link>
+            <div className="atelier-recent-grid">
+                {/* Recent Collections */}
+                <div className="recent-section">
+                    <div className="section-header">
+                        <h3 className="section-title">Latest <span className="italic">Acquisitions</span></h3>
+                        <Link to="/vendor/orders" className="btn-text-only">VIEW LEDGER</Link>
                     </div>
-                    {products.map((p) => (
-                        <div key={p._id} style={{ display: 'flex', gap: 12, padding: '12px 20px', borderBottom: '1px solid var(--border-light)', alignItems: 'center' }}>
-                            <img src={p.images?.[0]?.url} alt="" style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                                <p style={{ fontWeight: 600, fontSize: '0.88rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</p>
-                                <p style={{ fontSize: '0.78rem', color: 'var(--primary)' }}>₹{p.price.toLocaleString('en-IN')}</p>
+                    <div className="recent-list">
+                        {recentOrders.map((o) => (
+                            <div key={o._id} className="recent-order-item">
+                                <div className="order-meta">
+                                    <span className="order-id">#{o.order_number || o.orderId}</span>
+                                    <span className="order-customer">{o.customer_name || 'Anonymous Collector'}</span>
+                                </div>
+                                <div className="order-status-wrap">
+                                    <span className={`status-dot dot-${o.order_status?.toLowerCase() || o.status?.toLowerCase()}`}></span>
+                                    <span className="status-text">{o.order_status || o.status}</span>
+                                </div>
+                                <div className="entry-stitch"></div>
                             </div>
-                            <span style={{ fontSize: '0.75rem', color: p.stock > 0 ? '#16a34a' : '#dc2626' }}>
-                                {p.stock > 0 ? `${p.stock} left` : 'OOS'}
-                            </span>
-                        </div>
-                    ))}
-                    {products.length === 0 && (
-                        <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-light)' }}>No products yet.</div>
-                    )}
+                        ))}
+                    </div>
                 </div>
 
-                {/* Recent Orders */}
-                <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-light)', overflow: 'hidden' }}>
-                    <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <h3 style={{ fontSize: '1rem' }}>Recent Orders</h3>
-                        <Link to="/vendor/orders" style={{ fontSize: '0.82rem', color: 'var(--primary)' }}>View All</Link>
+                {/* Masterpiece Preview */}
+                <div className="recent-section">
+                    <div className="section-header">
+                        <h3 className="section-title">Masterpiece <span className="italic">Preview</span></h3>
+                        <Link to="/vendor/products" className="btn-text-only">MANAGE GALLERY</Link>
                     </div>
-                    {recentOrders.map((o) => (
-                        <div key={o._id} style={{ padding: '12px 20px', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div>
-                                <p style={{ fontWeight: 600, fontSize: '0.88rem' }}>#{o.orderId}</p>
-                                <p style={{ fontSize: '0.78rem', color: 'var(--text-light)' }}>{new Date(o.createdAt).toLocaleDateString('en-IN')}</p>
+                    <div className="recent-products-collage">
+                        {products.map((p, idx) => (
+                            <div key={p._id} className={`collage-piece piece-${idx}`}>
+                                <img src={p.images?.[0]?.url} alt={p.name} />
+                                <div className="piece-overlay">
+                                    <span>{p.name}</span>
+                                </div>
                             </div>
-                            <Badge status={o.status} />
-                        </div>
-                    ))}
-                    {recentOrders.length === 0 && (
-                        <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-light)' }}>No orders yet.</div>
-                    )}
+                        ))}
+                    </div>
                 </div>
             </div>
         </div>

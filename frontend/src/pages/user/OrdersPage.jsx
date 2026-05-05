@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { orderService } from '../../services';
-import { PageLoader, EmptyState, Badge } from '../../components/common/UI';
+import { PageLoader, EmptyState } from '../../components/common/UI';
+import { generateInvoice } from '../../utils/generateInvoice';
 
 const OrdersPage = () => {
     const [orders, setOrders] = useState([]);
@@ -14,45 +15,75 @@ const OrdersPage = () => {
         }).catch(() => setLoading(false));
     }, []);
 
+    const handleDownload = async (id) => {
+        try {
+            const { data } = await orderService.getOrder(id);
+            generateInvoice(data.data);
+        } catch (err) {
+            console.error('Failed to download invoice', err);
+        }
+    };
+
     if (loading) return <PageLoader />;
 
     return (
-        <div>
-            <div className="page-header">
-                <h1>My Orders</h1>
-                <p>Track and manage your orders</p>
+        <div className="canvas-orders">
+            <div className="orders-header animate-fade-in">
+                <span className="visual-label">Your Acquisition History</span>
+                <h1 className="canvas-title">The <span className="italic">Heritage</span> Journal</h1>
+                <p className="canvas-subtitle">A curated record of the masterpieces you've brought home.</p>
             </div>
-            <div className="page-content">
+
+            <div className="orders-journal-list">
                 {orders.length === 0 ? (
-                    <EmptyState icon="📦" title="No orders yet" message="You haven't placed any orders yet." action={<Link to="/shop" className="btn btn-primary">Start Shopping</Link>} />
+                    <EmptyState 
+                        icon={<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1"><path d="M21 8V20a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8"/><path d="M3 3h18v5H3z"/><path d="M10 12h4"/></svg>} 
+                        title="Journal is Empty" 
+                        message="Your collection awaits its first authentic piece." 
+                        action={<Link to="/shop" className="btn btn-primary">EXPLORE GALLERY</Link>} 
+                    />
                 ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                        {orders.map((order) => (
-                            <div key={order._id} style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-light)', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
-                                <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-                                    <div>
-                                        <p style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Order #{order.orderId}</p>
-                                        <p style={{ fontSize: '0.8rem', color: 'var(--text-light)' }}>{new Date(order.createdAt).toLocaleDateString('en-IN', { dateStyle: 'long' })}</p>
+                    <div className="journal-grid">
+                        {orders.map((order, idx) => (
+                            <div key={order._id} className="journal-entry animate-slide-up">
+                                <div className="entry-meta">
+                                    <span className="entry-num">#{orders.length - idx}</span>
+                                    <div className="entry-info">
+                                        <h3>ID: {order.orderId}</h3>
+                                        <p>{new Date(order.createdAt).toLocaleDateString('en-IN', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
                                     </div>
-                                    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                                        <Badge status={order.status} />
-                                        <span style={{ fontWeight: 700, color: 'var(--primary)' }}>₹{order.totalAmount?.toLocaleString('en-IN')}</span>
+                                    <div className={`entry-status status-${order.status.toLowerCase()}`}>
+                                        {order.status}
                                     </div>
                                 </div>
-                                <div style={{ padding: '12px 20px' }}>
-                                    {order.items?.slice(0, 2).map((item, i) => (
-                                        <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: i < order.items.length - 1 ? 10 : 0 }}>
-                                            <img src={item.product?.images?.[0]?.url} alt="" style={{ width: 52, height: 52, borderRadius: 8, objectFit: 'cover' }} />
-                                            <div>
-                                                <p style={{ fontWeight: 600, fontSize: '0.88rem' }}>{item.product?.name}</p>
-                                                <p style={{ fontSize: '0.78rem', color: 'var(--text-light)' }}>Qty: {item.quantity} &nbsp;·&nbsp; ₹{item.price?.toLocaleString('en-IN')}</p>
+
+                                <div className="entry-visuals">
+                                    {order.items?.map((item, i) => (
+                                        <div key={i} className="mini-acquisition">
+                                            <img src={item.product?.images?.[0]?.url || item.image} alt="" />
+                                            <div className="acquisition-overlay">
+                                                <span>{item.quantity}×</span>
                                             </div>
                                         </div>
                                     ))}
-                                    {order.items?.length > 2 && (
-                                        <p style={{ fontSize: '0.8rem', color: 'var(--text-light)', marginTop: 10 }}>+{order.items.length - 2} more items</p>
-                                    )}
                                 </div>
+
+                                <div className="entry-footer">
+                                    <div className="entry-total">
+                                        <span className="label">Total Acquisition</span>
+                                        <span className="value">₹{order.totalAmount?.toLocaleString('en-IN')}</span>
+                                    </div>
+                                    <div className="entry-actions">
+                                        <button 
+                                            onClick={() => handleDownload(order._id)} 
+                                            className="btn-journal-action"
+                                        >
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                            DOWNLOAD INVOICE
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="entry-stitch"></div>
                             </div>
                         ))}
                     </div>

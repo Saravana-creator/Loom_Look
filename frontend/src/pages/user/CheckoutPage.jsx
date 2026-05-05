@@ -11,7 +11,7 @@ const CheckoutPage = () => {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [detecting, setDetecting] = useState(false);
-    const [paymentMethod, setPaymentMethod] = useState('razorpay'); // 'razorpay' or 'cod'
+    const [paymentMethod, setPaymentMethod] = useState('razorpay'); 
     const [address, setAddress] = useState({
         fullName: user?.name || '',
         phone: '',
@@ -30,20 +30,14 @@ const CheckoutPage = () => {
     };
 
     const handleLocationDetection = () => {
-        if (!navigator.geolocation) {
-            toast.error('Geolocation is not supported by your browser.');
-            return;
-        }
-
+        if (!navigator.geolocation) return;
         setDetecting(true);
         navigator.geolocation.getCurrentPosition(
             async (position) => {
                 const { latitude, longitude } = position.coords;
                 try {
-                    // Using OSM Nominatim for free reverse geocoding
                     const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`);
                     const data = await res.json();
-                    
                     if (data && data.address) {
                         const { road, suburb, city, town, state, postcode } = data.address;
                         setAddress(prev => ({
@@ -53,18 +47,15 @@ const CheckoutPage = () => {
                             state: state || '',
                             pincode: postcode || prev.pincode
                         }));
-                        toast.success('📍 Location detected successfully!');
+                        toast.success('📍 Location Refined');
                     }
                 } catch (err) {
-                    toast.error('Could not fetch address details. Please fill manually.');
+                    toast.error('Could not auto-fill address.');
                 } finally {
                     setDetecting(false);
                 }
             },
-            () => {
-                toast.error('Location access denied. Please fill manually.');
-                setDetecting(false);
-            },
+            () => setDetecting(false),
             { enableHighAccuracy: true }
         );
     };
@@ -99,23 +90,21 @@ const CheckoutPage = () => {
             const { order, razorpayOrderId, amount, currency, razorpayKeyId } = data.data;
 
             if (paymentMethod === 'cod') {
-                // COD Flow
-                await fetchCart(); // Refresh cart to show it's empty
-                toast.success('🎉 Order confirmed! You can pay on delivery.');
+                await fetchCart();
+                toast.success('🎉 Heritage piece reserved! Pay on arrival.');
                 navigate(`/orders`);
                 return;
             }
 
-            // Razorpay Flow
             const loaded = await loadRazorpay();
-            if (!loaded) { toast.error('Failed to load payment gateway.'); setLoading(false); return; }
+            if (!loaded) { toast.error('Payment gateway unavailable.'); setLoading(false); return; }
 
             const options = {
-                key: razorpayKeyId || process.env.REACT_APP_RAZORPAY_KEY_ID,
+                key: razorpayKeyId,
                 amount,
                 currency,
                 name: 'Loom Look',
-                description: 'Handmade Saree Marketplace',
+                description: 'Authentic Heritage Collection',
                 image: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=100',
                 order_id: razorpayOrderId,
                 handler: async (response) => {
@@ -127,155 +116,132 @@ const CheckoutPage = () => {
                             razorpaySignature: response.razorpay_signature,
                         });
                         await fetchCart();
-                        toast.success('🎉 Payment successful! Order confirmed.');
+                        toast.success('✨ Payment Secured. Weaving your order.');
                         navigate(`/orders`);
                     } catch {
-                        toast.error('Payment verification failed. Contact support.');
+                        toast.error('Verification failed. Assistance required.');
                     }
                 },
-                prefill: {
-                    name: address.fullName,
-                    contact: address.phone,
-                },
-                theme: { color: '#8B4513' },
+                prefill: { name: address.fullName, contact: address.phone },
+                theme: { color: '#064E3B' },
                 modal: { ondismiss: () => setLoading(false) },
             };
 
             const rzp = new window.Razorpay(options);
             rzp.open();
         } catch (err) {
-            toast.error(err.response?.data?.message || 'Failed to process order.');
+            toast.error(err.response?.data?.message || 'Transaction could not be initialized.');
             setLoading(false);
         }
     };
 
     return (
-        <div className="checkout-container">
-            <div className="page-header" style={{ marginBottom: 40 }}>
-                <h1 style={{ fontFamily: 'Playfair Display, serif', color: 'var(--primary-dark)' }}>Order Checkout</h1>
-                <p style={{ color: 'var(--text-light)' }}>Secure your favorite handmade sarees</p>
-            </div>
-
-            <div className="page-content" style={{ maxWidth: 1200, margin: '0 auto' }}>
-                <form onSubmit={handleOrderSubmit}>
-                    <div className="checkout-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: 40, alignItems: 'start' }}>
+        <div className="canvas-checkout">
+            <div className="checkout-split">
+                {/* ── LEFT: ARTISAN'S SUMMARY ── */}
+                <div className="checkout-summary-panel">
+                    <div className="summary-inner animate-fade-in">
+                        <span className="visual-label">Your Selection</span>
+                        <h2 className="summary-title">The <span className="italic">Artisan's</span> Invoice</h2>
+                        <div className="summary-items-list">
+                            {items.map((item) => (
+                                <div key={item.product?._id} className="summary-item-card">
+                                    <div className="item-visual">
+                                        <img src={item.product?.images?.[0]?.url} alt="" />
+                                    </div>
+                                    <div className="item-detail">
+                                        <h4>{item.product?.name}</h4>
+                                        <p>Qty: {item.quantity}</p>
+                                    </div>
+                                    <div className="item-price">
+                                        ₹{( (item.product?.discountPrice || item.product?.price) * item.quantity).toLocaleString('en-IN')}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                         
-                        {/* Section 1: Shipping & Location */}
-                        <div className="checkout-section">
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-                                <h3 style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                    <span style={{ fontSize: '1.5rem' }}>📦</span> Shipping Details
-                                </h3>
-                                <button 
-                                    type="button" 
-                                    className="btn btn-secondary btn-sm" 
-                                    onClick={handleLocationDetection}
-                                    disabled={detecting}
-                                    style={{ borderRadius: 20, padding: '6px 16px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 6 }}
-                                >
-                                    {detecting ? '⌛ Detecting...' : '📍 Use My Location'}
-                                </button>
-                            </div>
-                            
-                            <div className="form-card" style={{ background: 'var(--bg-card)', borderRadius: 16, padding: 24, boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border-light)' }}>
-                                <div className="grid-form" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                                    <div style={{ gridColumn: 'span 2' }}>
-                                        <label className="form-label">Full Name</label>
-                                        <input className="form-control" name="fullName" value={address.fullName} onChange={handleChange} required placeholder="Recipient name" />
-                                    </div>
-                                    <div style={{ gridColumn: 'span 2' }}>
-                                        <label className="form-label">Mobile Number</label>
-                                        <input className="form-control" name="phone" value={address.phone} onChange={handleChange} required pattern="[6-9]\d{9}" placeholder="10-digit mobile number" />
-                                    </div>
-                                    <div style={{ gridColumn: 'span 2' }}>
-                                        <label className="form-label">Street/Area Address</label>
-                                        <textarea className="form-control" name="street" value={address.street} onChange={handleChange} rows={2} required placeholder="House No, Road, Locality" />
-                                    </div>
-                                    <div>
-                                        <label className="form-label">City</label>
-                                        <input className="form-control" name="city" value={address.city} onChange={handleChange} required placeholder="City/Town" />
-                                    </div>
-                                    <div>
-                                        <label className="form-label">PIN Code</label>
-                                        <input className="form-control" name="pincode" value={address.pincode} onChange={handleChange} required pattern="\d{6}" placeholder="6 digits" />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Section 2: Payment Options */}
-                            <h3 style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 40, marginBottom: 24 }}>
-                                <span style={{ fontSize: '1.5rem' }}>💳</span> Payment Method
-                            </h3>
-                            <div className="payment-options" style={{ display: 'grid', gap: 16 }}>
-                                <label className={`payment-card ${paymentMethod === 'razorpay' ? 'active' : ''}`} style={{ 
-                                    display: 'flex', alignItems: 'center', gap: 16, cursor: 'pointer', padding: 20, 
-                                    border: `2px solid ${paymentMethod === 'razorpay' ? 'var(--primary)' : 'var(--border-light)'}`, 
-                                    borderRadius: 16, background: paymentMethod === 'razorpay' ? 'var(--bg-highlight)' : 'var(--bg-card)',
-                                    transition: 'all 0.3s ease'
-                                }}>
-                                    <input type="radio" name="payment" checked={paymentMethod === 'razorpay'} onChange={() => setPaymentMethod('razorpay')} style={{ width: 18, height: 18 }} />
-                                    <div style={{ flex: 1 }}>
-                                        <p style={{ fontWeight: 600, fontSize: '1rem', marginBottom: 2 }}>Secure Online Payment</p>
-                                        <p style={{ fontSize: '0.8rem', color: 'var(--text-light)' }}>Cards, UPI, NetBanking, Wallets</p>
-                                    </div>
-                                    <span style={{ fontSize: '1.2rem' }}>🌐</span>
-                                </label>
-
-                                <label className={`payment-card ${paymentMethod === 'cod' ? 'active' : ''}`} style={{ 
-                                    display: 'flex', alignItems: 'center', gap: 16, cursor: 'pointer', padding: 20, 
-                                    border: `2px solid ${paymentMethod === 'cod' ? 'var(--primary)' : 'var(--border-light)'}`, 
-                                    borderRadius: 16, background: paymentMethod === 'cod' ? 'var(--bg-highlight)' : 'var(--bg-card)',
-                                    transition: 'all 0.3s ease'
-                                }}>
-                                    <input type="radio" name="payment" checked={paymentMethod === 'cod'} onChange={() => setPaymentMethod('cod')} style={{ width: 18, height: 18 }} />
-                                    <div style={{ flex: 1 }}>
-                                        <p style={{ fontWeight: 600, fontSize: '1rem', marginBottom: 2 }}>Cash on Delivery</p>
-                                        <p style={{ fontSize: '0.8rem', color: 'var(--text-light)' }}>Pay when your saree arrives</p>
-                                    </div>
-                                    <span style={{ fontSize: '1.2rem' }}>💵</span>
-                                </label>
+                        <div className="summary-totals">
+                            <div className="total-row"><span>Subtotal</span><span>₹{subtotal.toLocaleString('en-IN')}</span></div>
+                            <div className="total-row"><span>Shipping</span><span>{shippingCharge === 0 ? 'COMPLIMENTARY' : `₹${shippingCharge}`}</span></div>
+                            <div className="total-row"><span>GST (5%)</span><span>₹{tax.toLocaleString('en-IN')}</span></div>
+                            <div className="total-grand">
+                                <span>GRAND TOTAL</span>
+                                <span>₹{total.toLocaleString('en-IN')}</span>
                             </div>
                         </div>
-
-                        {/* Section 3: Summary & Action */}
-                        <div className="summary-section">
-                            <div className="order-summary-card" style={{ position: 'sticky', top: 100, background: 'var(--bg-card)', borderRadius: 20, padding: 32, boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border-light)' }}>
-                                <h3 style={{ fontFamily: 'Playfair Display, serif', marginBottom: 24, borderBottom: '1px solid var(--border-light)', paddingBottom: 16 }}>Order Summary</h3>
-                                <div className="summary-items" style={{ maxHeight: 200, overflowY: 'auto', paddingRight: 8 }}>
-                                    {items.map((item) => {
-                                        const price = item.product?.discountPrice > 0 ? item.product.discountPrice : item.product?.price;
-                                        return (
-                                            <div key={item.product?._id} style={{ display: 'flex', gap: 14, marginBottom: 16 }}>
-                                                <img src={item.product?.images?.[0]?.url} alt="" style={{ width: 56, height: 56, borderRadius: 10, objectFit: 'cover' }} />
-                                                <div style={{ flex: 1 }}>
-                                                    <p style={{ fontSize: '0.88rem', fontWeight: 600, marginBottom: 2, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.product?.name}</p>
-                                                    <p style={{ fontSize: '0.8rem', color: 'var(--text-light)' }}>Qty: {item.quantity}</p>
-                                                </div>
-                                                <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>₹{(price * item.quantity).toLocaleString('en-IN')}</p>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                                <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: 16, marginTop: 16, display: 'grid', gap: 10 }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-light)' }}><span>Subtotal</span><span>₹{subtotal.toLocaleString('en-IN')}</span></div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-light)' }}><span>Shipping</span><span>{shippingCharge === 0 ? <span style={{ color: '#16a34a' }}>FREE</span> : `₹${shippingCharge}`}</span></div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-light)' }}><span>GST (5%)</span><span>₹{tax.toLocaleString('en-IN')}</span></div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: '1.25rem', marginTop: 12, color: 'var(--primary-dark)' }}>
-                                        <span>Total</span>
-                                        <span>₹{total.toLocaleString('en-IN')}</span>
-                                    </div>
-                                </div>
-                                <button type="submit" className="btn btn-primary btn-full" style={{ marginTop: 32, padding: '16px', borderRadius: 12, fontSize: '1rem', fontWeight: 600 }} disabled={loading}>
-                                    {loading ? 'Processing...' : (paymentMethod === 'razorpay' ? '🔒 Pay & Place Order' : '📦 Confirm COD Order')}
-                                </button>
-                                <p style={{ textAlign: 'center', marginTop: 20, fontSize: '0.75rem', color: 'var(--text-light)' }}>
-                                    {paymentMethod === 'razorpay' ? 'Secure encrypted transactions by Razorpay' : 'Pay in cash when delivery partner reaches you'}
-                                </p>
-                            </div>
-                        </div>
-
                     </div>
-                </form>
+                </div>
+
+                {/* ── RIGHT: SHIPPING & PAYMENT ── */}
+                <div className="checkout-form-panel">
+                    <form onSubmit={handleOrderSubmit} className="form-inner animate-slide-up">
+                        <div className="form-header">
+                            <h3 className="section-title">Shipping <span className="italic">Destiny</span></h3>
+                            <button type="button" className="btn-text-only" onClick={handleLocationDetection}>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+                                {detecting ? 'REFINING...' : 'USE GEOLOCATION'}
+                            </button>
+                        </div>
+
+                        <div className="minimal-grid">
+                            <div className="minimal-group full">
+                                <input className="minimal-input" name="fullName" value={address.fullName} onChange={handleChange} required placeholder="RECIPIENT NAME" />
+                                <div className="minimal-bar"></div>
+                            </div>
+                            <div className="minimal-group full">
+                                <input className="minimal-input" name="phone" value={address.phone} onChange={handleChange} required pattern="[6-9]\d{9}" placeholder="CONTACT NUMBER" />
+                                <div className="minimal-bar"></div>
+                            </div>
+                            <div className="minimal-group full">
+                                <textarea className="minimal-input" name="street" value={address.street} onChange={handleChange} required placeholder="STREET ADDRESS" rows="1" />
+                                <div className="minimal-bar"></div>
+                            </div>
+                            <div className="minimal-group">
+                                <input className="minimal-input" name="city" value={address.city} onChange={handleChange} required placeholder="CITY" />
+                                <div className="minimal-bar"></div>
+                            </div>
+                            <div className="minimal-group">
+                                <input className="minimal-input" name="pincode" value={address.pincode} onChange={handleChange} required pattern="\d{6}" placeholder="PINCODE" />
+                                <div className="minimal-bar"></div>
+                            </div>
+                        </div>
+
+                        <div className="payment-selection">
+                            <h3 className="section-title">Payment <span className="italic">Portal</span></h3>
+                            <div className="unique-payment-grid">
+                                <div 
+                                    className={`payment-method-box ${paymentMethod === 'razorpay' ? 'active' : ''}`}
+                                    onClick={() => setPaymentMethod('razorpay')}
+                                >
+                                    <div className="method-icon">
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="5" width="18" height="14" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                                    </div>
+                                    <div className="method-text">
+                                        <h5>SECURE ONLINE</h5>
+                                        <p>UPI, CARDS, NETBANKING</p>
+                                    </div>
+                                </div>
+                                <div 
+                                    className={`payment-method-box ${paymentMethod === 'cod' ? 'active' : ''}`}
+                                    onClick={() => setPaymentMethod('cod')}
+                                >
+                                    <div className="method-icon">
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+                                    </div>
+                                    <div className="method-text">
+                                        <h5>HAND OVER CASH</h5>
+                                        <p>PAY ON ARRIVAL</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="submit" className="btn btn-primary btn-checkout" disabled={loading}>
+                            <span>{loading ? 'PROCESSING TRANSACTION...' : 'FINALIZE RESERVATION'}</span>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
     );
